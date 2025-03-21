@@ -1,34 +1,65 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import re
+import json
 from io import StringIO
 
-# ===================== CONFIG PÁGINA =====================
-st.set_page_config(page_title="Jesus e INSS | Extrator CNIS + Carta Benefício", layout="wide")
+# ===================== CONFIGURAÇÃO DA PÁGINA =====================
+st.set_page_config(page_title="Jesus e INSS | Sistema Completo", layout="wide")
 
-st.title("📄 JESUS e INSS - Extrator CNIS & Carta Benefício")
-st.write("**Recepção de arquivos TXT bagunçados ➔ Organização ➔ Visualização das tabelas completas ➔ Exportação CSV.**")
+# ===================== LOGIN ABA 1 =====================
+def login():
+    if 'login_visible' not in st.session_state:
+        st.session_state.login_visible = True
 
-# ===================== RECEPÇÃO DOS TXT =====================
-col1, col2 = st.columns(2)
+    if st.session_state.login_visible:
+        with st.expander("🔐 Área Protegida - Login Obrigatório", expanded=True):
+            user = st.text_input("Usuário (Email)")
+            password = st.text_input("Senha", type="password")
 
-with col1:
-    uploaded_cnis_txt = st.file_uploader("🔽 Upload do arquivo CNIS (TXT):", type="txt", key="cnis_txt")
+            usuarios = {
+                "jesusmjunior2021@gmail.com": "jr010507",
+                "joliveiramaccf@gmail.com": "cgti@383679"
+            }
 
-with col2:
-    uploaded_carta_txt = st.file_uploader("🔽 Upload do arquivo Carta Benefício (TXT):", type="txt", key="carta_txt")
+            if (user in usuarios and password == usuarios[user]):
+                st.success("Login efetuado com sucesso ✅")
+                if st.button("Ocultar Login"):
+                    st.session_state.login_visible = False
+                return True
+            else:
+                if user and password:
+                    st.error("Usuário ou senha incorretos ❌")
+                st.stop()
+    else:
+        st.info("Login ocultado. Clique abaixo para reexibir.")
+        if st.button("Mostrar Login"):
+            st.session_state.login_visible = True
+            st.experimental_rerun()
 
-# ===================== FUNÇÕES BASE =====================
+# ===================== EXECUTA LOGIN =====================
+login()
+
+# ===================== SELEÇÃO DE ABA =====================
+aba = st.sidebar.radio("Selecione a Aba:", [
+    "Dashboard Previdenciário",
+    "Extrator CNIS & Carta Benefício",
+    "Inserção Manual de Dados",
+    "Relatório Final Unificado"
+])
+
+# ===================== FUNÇÕES COMUNS =====================
+def exportar_csv(df, nome_base):
+    df.to_csv(f"{nome_base}.csv", index=False)
+    st.session_state[nome_base + '.csv'] = f"{nome_base}.csv"
+    return f"{nome_base}.csv"
 
 def ler_texto(uploaded_file):
-    """Converte o arquivo carregado em texto."""
     stringio = StringIO(uploaded_file.getvalue().decode("utf-8", errors='ignore'))
-    texto = stringio.read()
-    return texto
-
+    return stringio.read()
 
 def estrutura_cnis(texto):
-    """Estrutura os dados do CNIS em uma tabela organizada."""
     linhas = texto.split('\n')
     data = []
     for line in linhas:
@@ -36,12 +67,10 @@ def estrutura_cnis(texto):
         if match:
             competencia = match.group(1)
             remuneracao = match.group(2).replace('.', '').replace(',', '.')
-            data.append({'Competência': competencia, 'Remuneração': remuneracao})
+            data.append({'Competência': competencia, 'Remuneração': float(remuneracao)})
     return pd.DataFrame(data)
 
-
 def estrutura_carta(texto):
-    """Estrutura os dados da Carta de Benefício em uma tabela organizada."""
     linhas = texto.split('\n')
     data = []
     for line in linhas:
@@ -56,83 +85,72 @@ def estrutura_carta(texto):
             data.append({
                 'Seq.': seq,
                 'Data': data_col,
-                'Salário': salario,
-                'Índice': indice,
-                'Sal. Corrigido': sal_corrigido,
+                'Salário': float(salario),
+                'Índice': float(indice),
+                'Sal. Corrigido': float(sal_corrigido),
                 'Observação': observacao
             })
     return pd.DataFrame(data)
 
+def filtrar_salarios_desconsiderados_cnis(df_cnis):
+    salario_minimo = 1000
+    df_filtrado = df_cnis[df_cnis['Remuneração'] < salario_minimo].copy()
+    df_filtrado['Origem'] = "CNIS"
+    return df_filtrado
 
-def exportar_csv(df, nome_base):
-    """Exporta o dataframe para um arquivo CSV."""
-    df.to_csv(f"{nome_base}.csv", index=False)
-    return f"{nome_base}.csv"
+def filtrar_salarios_desconsiderados_carta(df_carta):
+    df_filtrado = df_carta[df_carta['Observação'].str.upper().str.contains("DESCONSIDERADO")].copy()
+    df_filtrado['Origem'] = "Carta"
+    return df_filtrado
 
+def combinar_salarios_desconsiderados(cnis, carta, manual):
+    return pd.concat([cnis, carta, manual], ignore_index=True)
 
-def filtrar_salarios_desconsiderados(df, limite=5000):
-    """Filtra os salários desconsiderados que são menores do que um limite pré-estabelecido."""
-    return df[df['Salário'].astype(float) < limite]
+# ===================== ABA 2: Extrator CNIS & Carta Benefício =====================
+if aba == "Extrator CNIS & Carta Benefício":
+    st.title("📄 Extrator CNIS & Carta Benefício")
 
+    col1, col2 = st.columns(2)
 
-# ===================== LAYOUT COM TABELAS =====================
+    with col1:
+        uploaded_cnis_txt = st.file_uploader("Upload CNIS TXT", type="txt")
+    with col2:
+        uploaded_carta_txt = st.file_uploader("Upload Carta Benefício TXT", type="txt")
 
-st.subheader("📊 Tabelas Organizacionais")
+    if uploaded_cnis_txt:
+        texto_cnis = ler_texto(uploaded_cnis_txt)
+        df_cnis = estrutura_cnis(texto_cnis)
+        st.dataframe(df_cnis)
+        exportar_csv(df_cnis, "CNIS_EXTRAIDO")
 
-col3, col4 = st.columns(2)
+    if uploaded_carta_txt:
+        texto_carta = ler_texto(uploaded_carta_txt)
+        df_carta = estrutura_carta(texto_carta)
+        st.dataframe(df_carta)
+        exportar_csv(df_carta, "CARTA_BENEFICIO_EXTRAIDA")
 
-with col3:
-    st.markdown("### 📄 Extrato CNIS")
-    if uploaded_cnis_txt is not None:
-        texto_txt = ler_texto(uploaded_cnis_txt)
-        df_cnis = estrutura_cnis(texto_txt)
-        if not df_cnis.empty:
-            # Exibe a tabela CNIS
-            st.dataframe(df_cnis, use_container_width=True)
-            file_output = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
-            st.download_button("⬇️ Baixar CNIS CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
-            
-            # Filtra e exibe os salários desconsiderados
-            salarios_desconsiderados = filtrar_salarios_desconsiderados(df_cnis)
-            if not salarios_desconsiderados.empty:
-                st.subheader("📉 Salários Desconsiderados - CNIS")
-                st.dataframe(salarios_desconsiderados)
-                file_output = exportar_csv(salarios_desconsiderados, "Salarios_Desconsiderados_CNIS")
-                st.download_button("⬇️ Baixar Salários Desconsiderados CNIS", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
-            else:
-                st.warning("⚠️ Nenhum salário desconsiderado identificado no CNIS.")
-                
-        else:
-            st.warning("⚠️ Nenhum dado CNIS identificado.")
-    else:
-        st.info("Faça upload do TXT CNIS para visualizar.")
+    if uploaded_cnis_txt and uploaded_carta_txt:
+        df_desconsid_cnis = filtrar_salarios_desconsiderados_cnis(df_cnis)
+        df_desconsid_carta = filtrar_salarios_desconsiderados_carta(df_carta)
+        df_total_desconsid = combinar_salarios_desconsiderados(df_desconsid_cnis, df_desconsid_carta, pd.DataFrame())
+        exportar_csv(df_total_desconsid, "SALARIOS_DESCONSIDERADOS_TOTAL")
+        st.success("Arquivos desconsiderados extraídos com sucesso!")
 
-with col4:
-    st.markdown("### 📄 Carta Benefício")
-    if uploaded_carta_txt is not None:
-        texto_txt = ler_texto(uploaded_carta_txt)
-        df_carta = estrutura_carta(texto_txt)
-        if not df_carta.empty:
-            # Exibe a tabela Carta de Benefício
-            st.dataframe(df_carta, use_container_width=True)
-            file_output = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
-            st.download_button("⬇️ Baixar Carta CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
-            
-            # Filtra e exibe os salários desconsiderados
-            salarios_desconsiderados = filtrar_salarios_desconsiderados(df_carta)
-            if not salarios_desconsiderados.empty:
-                st.subheader("📉 Salários Desconsiderados - Carta Benefício")
-                st.dataframe(salarios_desconsiderados)
-                file_output = exportar_csv(salarios_desconsiderados, "Salarios_Desconsiderados_Carta")
-                st.download_button("⬇️ Baixar Salários Desconsiderados Carta", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
-            else:
-                st.warning("⚠️ Nenhum salário desconsiderado identificado na Carta de Benefício.")
-        else:
-            st.warning("⚠️ Nenhum dado da Carta identificado.")
-    else:
-        st.info("Faça upload do TXT da Carta para visualizar.")
+# ===================== ABA 3: Inserção Manual de Dados =====================
+elif aba == "Inserção Manual de Dados":
+    st.title("✍️ Inserção Manual de Dados Alienígenas")
+    st.info("Preencha os campos abaixo para adicionar salários manuais no padrão da carta de benefício")
 
-# ===================== FEEDBACK =====================
+    if "manual_data" not in st.session_state:
+        st.session_state.manual_data = []
 
-if uploaded_cnis_txt is None and uploaded_carta_txt is None:
-    st.info("👆 Faça upload dos arquivos CNIS e Carta Benefício em TXT para iniciar.")
+    with st.form("form_manual"):
+        data = st.text_input("Data (MM/AAAA)", value="01/2020")
+        salario = st.text_input("Salário", value="2000.00")
+        indice = st.text_input("Índice", value="1.0")
+        sal_corrigido = st.text_input("Salário Corrigido", value="2000.00")
+        observacao = st.text_input("Observações", value="Manual")
+        submitted = st.form_submit_button("Adicionar")
+
+        if submitted:
+            st
