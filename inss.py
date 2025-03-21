@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 from fpdf import FPDF
 import io
 
@@ -47,19 +46,12 @@ if cnis_file and carta_file and desconsid_file:
     col2.metric("80% Maiores Salários", len(df_top80))
     col3.metric("Desconsiderados Reaproveitados", len(df_vantajosos))
 
-    # Gráficos
+    # Gráficos com Streamlit Charts
     st.subheader("📊 Comparativo CNIS - 80% Maiores Salários")
-    fig, ax = plt.subplots(figsize=(12,6))
-    ax.bar(df_top80['Competência'], df_top80['Remuneração'], label='CNIS', alpha=0.7)
-    plt.xticks(rotation=90)
-    plt.legend()
-    st.pyplot(fig)
+    st.bar_chart(data=df_top80, x='Competência', y='Remuneração', use_container_width=True)
 
     st.subheader("📈 Evolução Média Salarial - CNIS")
-    fig2, ax2 = plt.subplots(figsize=(12,6))
-    ax2.plot(df_top80['Competência'], df_top80['Remuneração'], marker='o')
-    plt.xticks(rotation=90)
-    st.pyplot(fig2)
+    st.line_chart(data=df_top80, x='Competência', y='Remuneração', use_container_width=True)
 
     # Tabelas detalhadas
     st.subheader("📄 80% Maiores Salários")
