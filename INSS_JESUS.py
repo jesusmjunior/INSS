@@ -214,4 +214,3 @@ elif aba == "Relatório Final Unificado":
         st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)''')
         st.markdown("**Fator aplicado:** 0.9282")
         st.markdown("**Substituições ou complementações destacadas com base na origem dos dados.**")
-
