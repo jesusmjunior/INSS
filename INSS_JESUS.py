@@ -16,6 +16,7 @@ def login():
     password = st.text_input("Senha", type="password")
 
     if user == "jesusmjunior2021@gmail.com" and password == "jr010507":
+         if user == "joliveiramaccf@gmail.com" and password == "cgti@383679":
         st.success("Login efetuado com sucesso ✅")
         return True
     else:
