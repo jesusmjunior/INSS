@@ -1,12 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-
-# ================================
-# CONFIGURAÇÃO INICIAL PRIMEIRA LINHA
-# ================================
-st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
-
 # ================================
 # LOGIN SIMPLES
 # ================================
@@ -15,21 +9,21 @@ def login():
     user = st.text_input("Usuário (Email)")
     password = st.text_input("Senha", type="password")
 
-    if user == "jesusmjunior2021@gmail.com" and password == "jr010507":
+    usuarios = {
+        "jesusmjunior2021@gmail.com": "jr010507",
+        "joliveiramaccf@gmail.com": "cgti@383679"
+    }
+
+    if user in usuarios and password == usuarios[user]:
         st.success("Login efetuado com sucesso ✅")
         return True
     else:
         if user and password:
             st.error("Usuário ou senha incorretos ❌")
-        st.stop()  # Para bloquear acesso caso não logado
-        
-        if user == "joliveiramaccf@gmail.com" and password == "cgti@383679":
-        st.success("Login efetuado com sucesso ✅")
-        return True
-    else:
-        if user and password:
-            st.error("Usuário ou senha incorretos ❌")
-        st.stop()  # Para bloquear acesso caso não logado
+        st.stop()
+
+# EXECUTA LOGIN
+login()
 
 # ================================
 # EXECUTA LOGIN
