@@ -1,14 +1,16 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import re
-import json
 from io import StringIO
 
 # ===================== CONFIGURAÇÃO DA PÁGINA =====================
 st.set_page_config(page_title="Jesus e INSS | Sistema Completo", layout="wide")
 
-# ===================== LOGIN ABA 1 =====================
+# Título do App
+st.title("📄 JESUS e INSS - Extrator CNIS & Carta Benefício")
+st.write("**Recepção de arquivos TXT bagunçados ➔ Organização ➔ Visualização das tabelas completas ➔ Exportação CSV.**")
+
+# ===================== ABA DE LOGIN =====================
 def login():
     if 'login_visible' not in st.session_state:
         st.session_state.login_visible = True
@@ -38,26 +40,13 @@ def login():
             st.session_state.login_visible = True
             st.experimental_rerun()
 
-# ===================== EXECUTA LOGIN =====================
-login()
-
-# ===================== SELEÇÃO DE ABA =====================
-aba = st.sidebar.radio("Selecione a Aba:", [
-    "Dashboard Previdenciário",
-    "Extrator CNIS & Carta Benefício",
-    "Inserção Manual de Dados",
-    "Relatório Final Unificado"
-])
-
-# ===================== FUNÇÕES COMUNS =====================
-def exportar_csv(df, nome_base):
-    df.to_csv(f"{nome_base}.csv", index=False)
-    st.session_state[nome_base + '.csv'] = f"{nome_base}.csv"
-    return f"{nome_base}.csv"
+# ===================== FUNÇÕES DE LEITURA E ESTRUTURAÇÃO =====================
 
 def ler_texto(uploaded_file):
     stringio = StringIO(uploaded_file.getvalue().decode("utf-8", errors='ignore'))
-    return stringio.read()
+    texto = stringio.read()
+    return texto
+
 
 def estrutura_cnis(texto):
     linhas = texto.split('\n')
@@ -67,8 +56,9 @@ def estrutura_cnis(texto):
         if match:
             competencia = match.group(1)
             remuneracao = match.group(2).replace('.', '').replace(',', '.')
-            data.append({'Competência': competencia, 'Remuneração': float(remuneracao)})
+            data.append({'Competência': competencia, 'Remuneração': remuneracao, 'Origem': 'CNIS'})
     return pd.DataFrame(data)
+
 
 def estrutura_carta(texto):
     linhas = texto.split('\n')
@@ -85,132 +75,76 @@ def estrutura_carta(texto):
             data.append({
                 'Seq.': seq,
                 'Data': data_col,
-                'Salário': float(salario),
-                'Índice': float(indice),
-                'Sal. Corrigido': float(sal_corrigido),
-                'Observação': observacao
+                'Salário': salario,
+                'Índice': indice,
+                'Sal. Corrigido': sal_corrigido,
+                'Observação': observacao,
+                'Origem': 'Carta Benefício'
             })
     return pd.DataFrame(data)
 
-def filtrar_salarios_desconsiderados_cnis(df_cnis):
-    salario_minimo = 1000
-    df_filtrado = df_cnis[df_cnis['Remuneração'] < salario_minimo].copy()
-    df_filtrado['Origem'] = "CNIS"
-    return df_filtrado
 
-def filtrar_salarios_desconsiderados_carta(df_carta):
-    df_filtrado = df_carta[df_carta['Observação'].str.upper().str.contains("DESCONSIDERADO")].copy()
-    df_filtrado['Origem'] = "Carta"
-    return df_filtrado
+def exportar_csv(df, nome_base):
+    df.to_csv(f"{nome_base}.csv", index=False)
+    return f"{nome_base}.csv"
 
-def combinar_salarios_desconsiderados(cnis, carta, manual):
-    return pd.concat([cnis, carta, manual], ignore_index=True)
+# ===================== LAYOUT COM TABELAS =====================
 
-# ===================== ABA 2: Extrator CNIS & Carta Benefício =====================
-if aba == "Extrator CNIS & Carta Benefício":
-    st.title("📄 Extrator CNIS & Carta Benefício")
+st.subheader("📊 Tabelas Organizacionais")
 
-    col1, col2 = st.columns(2)
+col1, col2 = st.columns(2)
 
-    with col1:
-        uploaded_cnis_txt = st.file_uploader("Upload CNIS TXT", type="txt")
-    with col2:
-        uploaded_carta_txt = st.file_uploader("Upload Carta Benefício TXT", type="txt")
+with col1:
+    uploaded_cnis_txt = st.file_uploader("🔽 Upload do arquivo CNIS (TXT):", type="txt", key="cnis_txt")
 
-    if uploaded_cnis_txt:
-        texto_cnis = ler_texto(uploaded_cnis_txt)
-        df_cnis = estrutura_cnis(texto_cnis)
-        st.dataframe(df_cnis)
-        exportar_csv(df_cnis, "CNIS_EXTRAIDO")
+with col2:
+    uploaded_carta_txt = st.file_uploader("🔽 Upload do arquivo Carta Benefício (TXT):", type="txt", key="carta_txt")
 
-    if uploaded_carta_txt:
-        texto_carta = ler_texto(uploaded_carta_txt)
-        df_carta = estrutura_carta(texto_carta)
-        st.dataframe(df_carta)
-        exportar_csv(df_carta, "CARTA_BENEFICIO_EXTRAIDA")
+# ===================== PROCESSAMENTO DOS DADOS =====================
 
-    if uploaded_cnis_txt and uploaded_carta_txt:
-        df_desconsid_cnis = filtrar_salarios_desconsiderados_cnis(df_cnis)
-        df_desconsid_carta = filtrar_salarios_desconsiderados_carta(df_carta)
-        df_total_desconsid = combinar_salarios_desconsiderados(df_desconsid_cnis, df_desconsid_carta, pd.DataFrame())
-        exportar_csv(df_total_desconsid, "SALARIOS_DESCONSIDERADOS_TOTAL")
-        st.success("Arquivos desconsiderados extraídos com sucesso!")
+if uploaded_cnis_txt and uploaded_carta_txt:
+    # Processando CNIS
+    texto_cnis = ler_texto(uploaded_cnis_txt)
+    df_cnis = estrutura_cnis(texto_cnis)
 
-# ===================== ABA 3: Inserção Manual de Dados =====================
-elif aba == "Inserção Manual de Dados":
-    st.title("✍️ Inserção Manual de Dados Alienígenas")
-    st.info("Preencha os campos abaixo para adicionar salários manuais no padrão da carta de benefício")
+    # Processando Carta Benefício
+    texto_carta = ler_texto(uploaded_carta_txt)
+    df_carta = estrutura_carta(texto_carta)
 
-    if "manual_data" not in st.session_state:
-        st.session_state.manual_data = []
+    # Exportando CNIS e Carta para CSV
+    file_cnis = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
+    file_carta = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
+    st.download_button("⬇️ Baixar CNIS CSV", data=open(file_cnis, 'rb'), file_name=file_cnis, mime='text/csv')
+    st.download_button("⬇️ Baixar Carta CSV", data=open(file_carta, 'rb'), file_name=file_carta, mime='text/csv')
 
-    with st.form("form_manual"):
-        data = st.text_input("Data (MM/AAAA)", value="01/2020")
-        salario = st.text_input("Salário", value="2000.00")
-        indice = st.text_input("Índice", value="1.0")
-        sal_corrigido = st.text_input("Salário Corrigido", value="2000.00")
-        observacao = st.text_input("Observações", value="Manual")
-        submitted = st.form_submit_button("Adicionar")
+    # ===================== SALÁRIOS DESCONSIDERADOS =====================
 
-        if submitted:
-            st.session_state.manual_data.append({
-                "Seq.": len(st.session_state.manual_data) + 1,
-                "Data": data,
-                "Salário": float(salario),
-                "Índice": float(indice),
-                "Sal. Corrigido": float(sal_corrigido),
-                "Observação": observacao,
-                "Origem": "Manual"
-            })
+    # CNIS - Filtrando os salários desconsiderados
+    df_desconsiderados_cnis = df_cnis[df_cnis['Remuneração'].astype(float) < 1000]  # Exemplo de filtro
+    df_desconsiderados_carta = df_carta[df_carta['Salário'].astype(float) < 1000]  # Exemplo de filtro
 
-    df_manual = pd.DataFrame(st.session_state.manual_data)
-    if not df_manual.empty:
-        st.dataframe(df_manual)
-        exportar_csv(df_manual, "SALARIOS_ALIENIGENAS_MANUAL")
+    # Agrupando os dados de salários desconsiderados
+    df_desconsiderados = pd.concat([df_desconsiderados_cnis, df_desconsiderados_carta], ignore_index=True)
+    file_output_desconsiderados = exportar_csv(df_desconsiderados, "Salarios_Desconsiderados")
 
-# ===================== ABA 4: Relatório Final Unificado =====================
-elif aba == "Relatório Final Unificado":
-    st.title("📄 Relatório Final Consolidado")
+    # Exibindo os salários desconsiderados
+    st.subheader("📊 Salários Desconsiderados (CNIS e Carta)")
+    st.dataframe(df_desconsiderados, use_container_width=True)
+    st.download_button("⬇️ Baixar Salários Desconsiderados CSV", data=open(file_output_desconsiderados, 'rb'), file_name=file_output_desconsiderados, mime='text/csv')
 
-    def calcular_beneficio_final(df, label):
-        salarios_ordenados = df.sort_values(by='Sal. Corrigido' if 'Sal. Corrigido' in df.columns else 'Remuneração', ascending=False)
-        n = int(len(salarios_ordenados) * 0.8)
-        top80 = salarios_ordenados.iloc[:n]
-        media = top80['Sal. Corrigido' if 'Sal. Corrigido' in top80.columns else 'Remuneração'].mean()
-        fator = 0.9282
-        beneficio = round(media * fator, 2)
-        return media, beneficio, top80
+    # ===================== CAIXA DE DADOS ALIENÍGENAS =====================
 
-    dfs = {}
-    for nome in ["CNIS_EXTRAIDO", "CARTA_BENEFICIO_EXTRAIDA", "SALARIOS_DESCONSIDERADOS_TOTAL", "SALARIOS_ALIENIGENAS_MANUAL"]:
-        path = nome + ".csv"
-        if path in st.session_state:
-            df = pd.read_csv(st.session_state[path])
-            st.subheader(f"📂 {nome.replace('_', ' ')}")
-            st.dataframe(df)
-            dfs[nome] = df
-        else:
-            st.warning(f"Arquivo não encontrado: {path}")
+    alienigenas_input = st.text_area("Inserir dados alienígenas para cálculo (formato livre):")
+    if st.button("Formatar Dados Alienígenas"):
+        # Processamento para formatar os dados alienígenas (exemplo simples)
+        alienigenas_formatted = alienigenas_input.replace(",", ".").replace("\n", ",").split(',')
+        df_alienigenas = pd.DataFrame({'Dados Alienígenas': alienigenas_formatted})
+        st.write("### Dados Alienígenas Formatados:")
+        st.dataframe(df_alienigenas)
 
-    if dfs:
-        st.markdown("---")
-        st.subheader("📌 Comparativo de Cálculo Previdenciário")
+        # Gerar CSV para download
+        file_output_alienigenas = exportar_csv(df_alienigenas, "Alienigenas_Formatados")
+        st.download_button("⬇️ Baixar Alienígenas CSV", data=open(file_output_alienigenas, 'rb'), file_name=file_output_alienigenas, mime='text/csv')
 
-        df_inss = dfs.get("CARTA_BENEFICIO_EXTRAIDA")
-        df_novo = pd.concat([
-            dfs.get("SALARIOS_DESCONSIDERADOS_TOTAL", pd.DataFrame()),
-            dfs.get("SALARIOS_ALIENIGENAS_MANUAL", pd.DataFrame())
-        ], ignore_index=True)
-
-        media_inss, beneficio_inss, _ = calcular_beneficio_final(df_inss, "INSS")
-        media_novo, beneficio_novo, _ = calcular_beneficio_final(df_novo, "NOVO")
-
-        col1, col2 = st.columns(2)
-        col1.metric("Média INSS", f"R$ {media_inss:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        col1.metric("Benefício INSS", f"R$ {beneficio_inss:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        col2.metric("Média NOVO", f"R$ {media_novo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        col2.metric("Benefício NOVO", f"R$ {beneficio_novo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-
-        st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)''')
-        st.markdown("**Fator aplicado:** 0.9282")
-        st.markdown("**Substituições ou complementações destacadas com base na origem dos dados.**")
+else:
+    st.info("🔔 Faça upload dos arquivos CNIS e Carta Benefício para iniciar o processamento.")
