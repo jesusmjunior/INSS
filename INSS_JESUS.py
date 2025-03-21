@@ -124,7 +124,7 @@ if aba == "Dashboard Previdenciário":
         elif aba_dash == "Explicação":
             st.title("📖 Explicação Detalhada")
             st.markdown("### Fórmulas Aplicadas:")
-            st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)")
+            st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)''')
             st.markdown(f"""
             Onde:
             - $T_c = 38$ anos (Tempo de Contribuição)
@@ -161,7 +161,7 @@ if aba == "Dashboard Previdenciário":
             st.subheader("📌 Salários Desconsiderados Reaproveitados")
             st.dataframe(df_vantajosos)
             st.subheader("📌 Fórmula Previdenciária Aplicada")
-            st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)")
+            st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)''')
             st.markdown(f"**Fator aplicado:** {fator}")
             st.markdown(f"**Média dos salários:** {formatar_moeda(media_salarios)}")
             st.markdown(f"**Salário de Benefício Final:** {formatar_moeda(salario_beneficio)}")
