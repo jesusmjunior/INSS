@@ -2,32 +2,35 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
 # ================================
 # LOGIN SIMPLES
 # ================================
 def login():
-    st.sidebar.title("🔐 Login de Acesso")
-    user = st.sidebar.text_input("Usuário (Email)")
-    password = st.sidebar.text_input("Senha", type="password")
+    st.title("🔐 Área Protegida - Login Obrigatório")
+    user = st.text_input("Usuário (Email)")
+    password = st.text_input("Senha", type="password")
 
     if user == "jesusmjunior2021@gmail.com" and password == "jr010507":
-        st.sidebar.success("Login efetuado com sucesso ✅")
+        st.success("Login efetuado com sucesso ✅")
         return True
     else:
         if user and password:
-            st.sidebar.error("Usuário ou senha incorretos ❌")
-        return False
+            st.error("Usuário ou senha incorretos ❌")
+        st.stop()  # Para bloquear acesso caso não logado
 
 # ================================
 # EXECUTA LOGIN
 # ================================
-if login():
-    st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
+login()
+
+# ================================
+# CONFIGURAÇÃO INICIAL APÓS LOGIN
+# ================================
+st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
+
 # ================================
 # FUNÇÕES UTILITÁRIAS
 # ================================
-
 def organizar_cnis(file):
     df = pd.read_csv(file, delimiter=';', encoding='utf-8')
     df = df.iloc[:,0].str.split(',', expand=True)
@@ -124,7 +127,7 @@ if cnis_file and carta_file and desconsid_file:
         st.title("📖 Explicação Detalhada")
         st.markdown("### Fórmulas Aplicadas:")
         st.latex(r'''
-        Fator\ Previdenciário = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)
+        Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)
         ''')
         st.markdown(f"""
         Onde:
@@ -153,7 +156,7 @@ if cnis_file and carta_file and desconsid_file:
         st.write(f"**Salário Benefício Simulado:** {formatar_moeda(salario_simulado)}")
 
     # ================================
-    # RELATÓRIO FINAL NO DASHBOARD
+    # RELATÓRIO FINAL
     # ================================
     elif aba == "Relatório":
         st.title("📄 Relatório Previdenciário Consolidado")
@@ -176,7 +179,7 @@ if cnis_file and carta_file and desconsid_file:
 
         st.subheader("📌 Fórmula Previdenciária Aplicada")
         st.latex(r'''
-        Fator\ Previdenciário = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)
+        Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)
         ''')
         st.markdown(f"**Fator aplicado:** {fator}")
         st.markdown(f"**Média dos salários:** {formatar_moeda(media_salarios)}")
@@ -184,5 +187,6 @@ if cnis_file and carta_file and desconsid_file:
         st.markdown("---")
 
         st.markdown("📎 **Este relatório pode ser impresso diretamente em PDF.**")
+
 else:
     st.info("🔔 Faça upload dos 3 arquivos obrigatórios para liberar o dashboard.")
