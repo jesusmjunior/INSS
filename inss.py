@@ -1,11 +1,9 @@
 import streamlit as st
 import pandas as pd
-from fpdf import FPDF
-import io
 
 st.set_page_config(page_title="Dashboard Previdenciário Completo", layout="wide")
 
-st.title("📑 Dashboard Previdenciário Completo com Reprocessamento e PDF")
+st.title("📑 Dashboard Previdenciário Completo com Reprocessamento")
 
 # Sidebar para upload
 st.sidebar.header("🔽 Upload dos Arquivos")
@@ -75,29 +73,16 @@ if cnis_file and carta_file and desconsid_file:
     st.write(f"**Fator Previdenciário aplicado:** {fator}")
     st.write(f"**Salário de Benefício (corrigido):** R$ {salario_beneficio:,.2f}")
 
+    # Tabela consolidada para download
+    st.subheader("📥 Planilha Consolidação Final")
+    consolidado = df_top80.copy()
+    consolidado['Considerado'] = 'Sim'
+    df_vantajosos['Considerado'] = 'Reaproveitado'
+    consolidado_final = pd.concat([consolidado, df_vantajosos[['Competência', 'Sal. Corrigido', 'Considerado']].rename(columns={'Sal. Corrigido':'Remuneração'})], ignore_index=True)
+    st.dataframe(consolidado_final)
+
     # Download da planilha consolidada
-    st.sidebar.download_button(label="⬇️ Baixar 80% Consolidados (CSV)", data=df_top80.to_csv(index=False).encode('utf-8'), file_name='80_Maiores_Consolidado.csv', mime='text/csv')
-
-    # Geração de PDF Carta
-    if st.button("📄 Gerar Relatório PDF da Carta Reprocessada"):
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "Carta de Concessão Reprocessada", ln=True, align='C')
-        pdf.ln(10)
-        pdf.set_font("Arial", '', 11)
-        pdf.multi_cell(0, 8, f"Beneficiário: ANTONIO FRANCISCO BEZERRA\nNIT: 1079867320-3\nNúmero Benefício: 171516921-0\n\nConforme reanálise, aplicou-se a regra dos 80% maiores salários e fator previdenciário atualizado.\n\nMédia dos salários: R$ {media:,.2f}\nFator Previdenciário: {fator}\nSalário de Benefício: R$ {salario_beneficio:,.2f}\n\nOs salários desconsiderados mais vantajosos foram integrados, resultando em benefício corrigido.")
-        pdf.ln(5)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 10, "Resumo dos 80% Salários Considerados:", ln=True)
-        for index, row in df_top80.iterrows():
-            pdf.set_font("Arial", '', 10)
-            pdf.cell(0, 8, f"Competência: {row['Competência']} | Remuneração: R$ {row['Remuneração']:,.2f}", ln=True)
-
-        # Exportação PDF
-        pdf_output = io.BytesIO()
-        pdf.output(pdf_output)
-        st.download_button(label="⬇️ Baixar PDF Carta Reprocessada", data=pdf_output.getvalue(), file_name="Carta_Reprocessada.pdf", mime="application/pdf")
+    st.sidebar.download_button(label="⬇️ Baixar Consolidação Final (CSV)", data=consolidado_final.to_csv(index=False).encode('utf-8'), file_name='Consolidado_Final.csv', mime='text/csv')
 
 else:
     st.info("🔔 Faça o upload dos 3 arquivos obrigatórios para visualizar o dashboard.")
