@@ -3,7 +3,27 @@ import pandas as pd
 import numpy as np
 
 st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
+# ================================
+# LOGIN SIMPLES
+# ================================
+def login():
+    st.sidebar.title("🔐 Login de Acesso")
+    user = st.sidebar.text_input("Usuário (Email)")
+    password = st.sidebar.text_input("Senha", type="password")
 
+    if user == "jesusmjunior2021@gmail.com" and password == "jr010507":
+        st.sidebar.success("Login efetuado com sucesso ✅")
+        return True
+    else:
+        if user and password:
+            st.sidebar.error("Usuário ou senha incorretos ❌")
+        return False
+
+# ================================
+# EXECUTA LOGIN
+# ================================
+if login():
+    st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
 # ================================
 # FUNÇÕES UTILITÁRIAS
 # ================================
