@@ -3,6 +3,11 @@ import pandas as pd
 import numpy as np
 
 # ================================
+# CONFIGURAÇÃO INICIAL PRIMEIRA LINHA
+# ================================
+st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
+
+# ================================
 # LOGIN SIMPLES
 # ================================
 def login():
@@ -22,11 +27,6 @@ def login():
 # EXECUTA LOGIN
 # ================================
 login()
-
-# ================================
-# CONFIGURAÇÃO INICIAL APÓS LOGIN
-# ================================
-st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
 
 # ================================
 # FUNÇÕES UTILITÁRIAS
