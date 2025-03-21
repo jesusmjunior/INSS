@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import re
+import json
 from io import StringIO
 
 # ===================== CONFIGURAÇÃO DA PÁGINA =====================
@@ -66,7 +67,7 @@ def estrutura_cnis(texto):
         if match:
             competencia = match.group(1)
             remuneracao = match.group(2).replace('.', '').replace(',', '.')
-            data.append({'Competência': competencia, 'Remuneração': remuneracao})
+            data.append({'Competência': competencia, 'Remuneração': float(remuneracao)})
     return pd.DataFrame(data)
 
 def estrutura_carta(texto):
@@ -84,155 +85,132 @@ def estrutura_carta(texto):
             data.append({
                 'Seq.': seq,
                 'Data': data_col,
-                'Salário': salario,
-                'Índice': indice,
-                'Sal. Corrigido': sal_corrigido,
+                'Salário': float(salario),
+                'Índice': float(indice),
+                'Sal. Corrigido': float(sal_corrigido),
                 'Observação': observacao
             })
     return pd.DataFrame(data)
 
+def filtrar_salarios_desconsiderados_cnis(df_cnis):
+    salario_minimo = 1000
+    df_filtrado = df_cnis[df_cnis['Remuneração'] < salario_minimo].copy()
+    df_filtrado['Origem'] = "CNIS"
+    return df_filtrado
+
 def filtrar_salarios_desconsiderados_carta(df_carta):
     df_filtrado = df_carta[df_carta['Observação'].str.upper().str.contains("DESCONSIDERADO")].copy()
     df_filtrado['Origem'] = "Carta"
-    if not df_filtrado.empty:
-        nome_arquivo = exportar_csv(df_filtrado, "Salarios_Desconsiderados_Carta")
-        st.success(f"Arquivo gerado: {nome_arquivo}")
-        st.dataframe(df_filtrado)
     return df_filtrado
 
-# Filtragem de Salários Desconsiderados no CNIS
-def filtrar_salarios_desconsiderados_cnis(df_cnis):
-    df_filtrado = df_cnis[df_cnis['Remuneração'] < 1000].copy()  # Exemplo, ajuste conforme sua lógica
-    df_filtrado['Origem'] = "CNIS"
-    if not df_filtrado.empty:
-        nome_arquivo = exportar_csv(df_filtrado, "Salarios_Desconsiderados_Cnis")
-        st.success(f"Arquivo gerado: {nome_arquivo}")
-        st.dataframe(df_filtrado)
-    return df_filtrado
+def combinar_salarios_desconsiderados(cnis, carta, manual):
+    return pd.concat([cnis, carta, manual], ignore_index=True)
 
-# ===================== ABA 1: Dashboard Previdenciário =====================
-if aba == "Dashboard Previdenciário":
-    st.title("📑 Dashboard Previdenciário Profissional")
+# ===================== ABA 2: Extrator CNIS & Carta Benefício =====================
+if aba == "Extrator CNIS & Carta Benefício":
+    st.title("📄 Extrator CNIS & Carta Benefício")
 
-    # Funções Utilitárias
-    def organizar_cnis(file):
-        df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-        df = df.iloc[:,0].str.split(',', expand=True)
-        df.columns = ['Seq', 'Competência', 'Remuneração', 'Ano']
-        df['Remuneração'] = pd.to_numeric(df['Remuneração'], errors='coerce')
-        df = df[df['Remuneração'] < 50000]  # Remove discrepantes - fuzzy
-        return df
+    col1, col2 = st.columns(2)
 
-    def organizar_desconsiderados(file):
-        df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-        df = df.iloc[:,0].str.split(',', expand=True)
-        df.columns = ['Seq', 'Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Duplicado']
-        df['Sal. Corrigido'] = pd.to_numeric(df['Sal. Corrigido'], errors='coerce')
-        return df
+    with col1:
+        uploaded_cnis_txt = st.file_uploader("Upload CNIS TXT", type="txt")
+    with col2:
+        uploaded_carta_txt = st.file_uploader("Upload Carta Benefício TXT", type="txt")
 
-    def fator_previdenciario(Tc, Es, Id, a=0.31):
-        fator = (Tc * a / Es) * (1 + ((Id + Tc * a) / 100))
-        return round(fator, 4)
+    if uploaded_cnis_txt:
+        texto_cnis = ler_texto(uploaded_cnis_txt)
+        df_cnis = estrutura_cnis(texto_cnis)
+        st.dataframe(df_cnis)
+        exportar_csv(df_cnis, "CNIS_EXTRAIDO")
 
-    def formatar_moeda(valor):
-        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    if uploaded_carta_txt:
+        texto_carta = ler_texto(uploaded_carta_txt)
+        df_carta = estrutura_carta(texto_carta)
+        st.dataframe(df_carta)
+        exportar_csv(df_carta, "CARTA_BENEFICIO_EXTRAIDA")
 
-    # Upload dos arquivos
-    st.sidebar.header("🔽 Upload dos Arquivos")
-    cnis_file = st.sidebar.file_uploader("Upload - CNIS", type=["csv"])
-    carta_file = st.sidebar.file_uploader("Upload - Carta", type=["csv"])
-    desconsid_file = st.sidebar.file_uploader("Upload - Desconsiderados", type=["csv"])
+    if uploaded_cnis_txt and uploaded_carta_txt:
+        df_desconsid_cnis = filtrar_salarios_desconsiderados_cnis(df_cnis)
+        df_desconsid_carta = filtrar_salarios_desconsiderados_carta(df_carta)
+        df_total_desconsid = combinar_salarios_desconsiderados(df_desconsid_cnis, df_desconsid_carta, pd.DataFrame())
+        exportar_csv(df_total_desconsid, "SALARIOS_DESCONSIDERADOS_TOTAL")
+        st.success("Arquivos desconsiderados extraídos com sucesso!")
 
-    aba_dash = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório"])
+# ===================== ABA 3: Inserção Manual de Dados =====================
+elif aba == "Inserção Manual de Dados":
+    st.title("✍️ Inserção Manual de Dados Alienígenas")
+    st.info("Preencha os campos abaixo para adicionar salários manuais no padrão da carta de benefício")
 
-    if cnis_file and carta_file and desconsid_file:
-        df_cnis = organizar_cnis(cnis_file)
-        df_desconsiderados = organizar_desconsiderados(desconsid_file)
+    if "manual_data" not in st.session_state:
+        st.session_state.manual_data = []
 
-        # 80% MAIORES SALÁRIOS
-        df_cnis_sorted = df_cnis.sort_values(by='Remuneração', ascending=False)
-        qtd_80 = int(len(df_cnis_sorted) * 0.8)
-        df_top80 = df_cnis_sorted.head(qtd_80)
-        df_bottom10 = df_cnis_sorted.tail(len(df_cnis_sorted) - qtd_80)
+    with st.form("form_manual"):
+        data = st.text_input("Data (MM/AAAA)", value="01/2020")
+        salario = st.text_input("Salário", value="2000.00")
+        indice = st.text_input("Índice", value="1.0")
+        sal_corrigido = st.text_input("Salário Corrigido", value="2000.00")
+        observacao = st.text_input("Observações", value="Manual")
+        submitted = st.form_submit_button("Adicionar")
 
-        # DESCONSIDERADOS VANTAJOSOS
-        min_80 = df_top80['Remuneração'].min()
-        df_vantajosos = df_desconsiderados[df_desconsiderados['Sal. Corrigido'] > min_80]
+        if submitted:
+            st.session_state.manual_data.append({
+                "Seq.": len(st.session_state.manual_data) + 1,
+                "Data": data,
+                "Salário": float(salario),
+                "Índice": float(indice),
+                "Sal. Corrigido": float(sal_corrigido),
+                "Observação": observacao,
+                "Origem": "Manual"
+            })
 
-        # PARÂMETROS DEFAULT
-        Tc_default, Es_default, Id_default, a_default = 38, 21.8, 60, 0.31
-        media_salarios = df_top80['Remuneração'].mean()
-        fator = fator_previdenciario(Tc_default, Es_default, Id_default, a_default)
-        salario_beneficio = round(media_salarios * fator, 2)
+    df_manual = pd.DataFrame(st.session_state.manual_data)
+    if not df_manual.empty:
+        st.dataframe(df_manual)
+        exportar_csv(df_manual, "SALARIOS_ALIENIGENAS_MANUAL")
 
-        # FORMATAÇÃO MOEDA
-        df_top80['Remuneração'] = df_top80['Remuneração'].apply(formatar_moeda)
-        df_vantajosos['Sal. Corrigido'] = df_vantajosos['Sal. Corrigido'].apply(formatar_moeda)
+# ===================== ABA 4: Relatório Final Unificado =====================
+elif aba == "Relatório Final Unificado":
+    st.title("📄 Relatório Final Consolidado")
 
-        if aba_dash == "Dashboard":
-            st.subheader("🧮 Resultados Previdenciários")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total CNIS", len(df_cnis))
-            col2.metric("80% Maiores Salários", len(df_top80))
-            col3.metric("Desconsid. Reaproveitados", len(df_vantajosos))
-            st.write(f"**Média dos 80% maiores salários:** {formatar_moeda(media_salarios)}")
-            st.write(f"**Fator Previdenciário:** {fator}")
-            st.write(f"**Salário de Benefício:** {formatar_moeda(salario_beneficio)}")
-            st.subheader("📄 Tabelas Detalhadas")
-            st.dataframe(df_top80)
-            st.dataframe(df_vantajosos)
+    def calcular_beneficio_final(df, label):
+        salarios_ordenados = df.sort_values(by='Sal. Corrigido' if 'Sal. Corrigido' in df.columns else 'Remuneração', ascending=False)
+        n = int(len(salarios_ordenados) * 0.8)
+        top80 = salarios_ordenados.iloc[:n]
+        media = top80['Sal. Corrigido' if 'Sal. Corrigido' in top80.columns else 'Remuneração'].mean()
+        fator = 0.9282
+        beneficio = round(media * fator, 2)
+        return media, beneficio, top80
 
-        elif aba_dash == "Gráficos":
-            st.title("📊 Visualização Gráfica")
-            df_grafico = df_cnis_sorted.head(qtd_80)
-            st.bar_chart(data=df_grafico, x='Competência', y='Remuneração')
-            st.line_chart(data=df_grafico, x='Competência', y='Remuneração')
+    dfs = {}
+    for nome in ["CNIS_EXTRAIDO", "CARTA_BENEFICIO_EXTRAIDA", "SALARIOS_DESCONSIDERADOS_TOTAL", "SALARIOS_ALIENIGENAS_MANUAL"]:
+        path = nome + ".csv"
+        if path in st.session_state:
+            df = pd.read_csv(st.session_state[path])
+            st.subheader(f"📂 {nome.replace('_', ' ')}")
+            st.dataframe(df)
+            dfs[nome] = df
+        else:
+            st.warning(f"Arquivo não encontrado: {path}")
 
-        elif aba_dash == "Explicação":
-            st.title("📖 Explicação Detalhada")
-            st.markdown("### Fórmulas Aplicadas:")
-            st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)''')
-            st.markdown(f"""
-            Onde:
-            - $T_c = 38$ anos (Tempo de Contribuição)
-            - $E_s = 21,8$ anos (Expectativa Sobrevida)
-            - $I_d = 60$ anos (Idade)
-            - $a = 0,31$ (Alíquota)
-            """)
-            st.latex(r'''Sal\u00e1rio\ de\ Benef\u00edcio = M\u00e9dia_{80\%} \times Fator''')
-            st.markdown(f"**Média = {formatar_moeda(media_salarios)}, Fator = {fator}, Resultado = {formatar_moeda(salario_beneficio)}**")
+    if dfs:
+        st.markdown("---")
+        st.subheader("📌 Comparativo de Cálculo Previdenciário")
 
-        elif aba_dash == "Simulador":
-            st.title("⚙️ Simulador Previdenciário")
-            Tc_input = st.number_input("Tempo de Contribuição (anos)", value=38)
-            Es_input = st.number_input("Expectativa Sobrevida", value=21.8)
-            Id_input = st.number_input("Idade", value=60)
-            a_input = st.number_input("Alíquota", value=0.31)
-            fator_simulado = fator_previdenciario(Tc_input, Es_input, Id_input, a_input)
-            salario_simulado = round(media_salarios * fator_simulado, 2)
-            st.write(f"**Fator Previdenciário Simulado:** {fator_simulado}")
-            st.write(f"**Salário Benefício Simulado:** {formatar_moeda(salario_simulado)}")
+        df_inss = dfs.get("CARTA_BENEFICIO_EXTRAIDA")
+        df_novo = pd.concat([
+            dfs.get("SALARIOS_DESCONSIDERADOS_TOTAL", pd.DataFrame()),
+            dfs.get("SALARIOS_ALIENIGENAS_MANUAL", pd.DataFrame())
+        ], ignore_index=True)
 
-        elif aba_dash == "Relatório":
-            st.title("📄 Relatório Previdenciário Consolidado")
-            st.markdown(""" ## Relatório Consolidado
-            Este relatório apresenta os resultados detalhados do processamento previdenciário conforme os dados enviados e as regras aplicadas. 
-            """)
-            st.markdown(f"**Total de registros CNIS:** {len(df_cnis)}")
-            st.markdown(f"**80% maiores salários considerados:** {len(df_top80)}")
-            st.markdown(f"**Salários desconsiderados reaproveitados:** {len(df_vantajosos)}")
-            st.markdown("---")
-            st.subheader("📌 Detalhamento dos 80% Maiores Salários")
-            st.dataframe(df_top80)
-            st.subheader("📌 Salários Desconsiderados Reaproveitados")
-            st.dataframe(df_vantajosos)
-            st.subheader("📌 Fórmula Previdenciária Aplicada")
-            st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)''')
-            st.markdown(f"**Fator aplicado:** {fator}")
-            st.markdown(f"**Média dos salários:** {formatar_moeda(media_salarios)}")
-            st.markdown(f"**Salário de Benefício Final:** {formatar_moeda(salario_beneficio)}")
-            st.markdown("---")
-            st.markdown("📎 **Este relatório pode ser impresso diretamente em PDF.**")
+        media_inss, beneficio_inss, _ = calcular_beneficio_final(df_inss, "INSS")
+        media_novo, beneficio_novo, _ = calcular_beneficio_final(df_novo, "NOVO")
 
-    else:
-        st.info("🔔 Faça upload dos 3 arquivos obrigatórios para liberar o dashboard.")
+        col1, col2 = st.columns(2)
+        col1.metric("Média INSS", f"R$ {media_inss:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        col1.metric("Benefício INSS", f"R$ {beneficio_inss:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        col2.metric("Média NOVO", f"R$ {media_novo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        col2.metric("Benefício NOVO", f"R$ {beneficio_novo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+        st.latex(r'''Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)''')
+        st.markdown("**Fator aplicado:** 0.9282")
+        st.markdown("**Substituições ou complementações destacadas com base na origem dos dados.**")
