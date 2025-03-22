@@ -107,6 +107,9 @@ if uploaded_cnis_txt and uploaded_carta_txt:
     if 'Salário Corrigido' not in df_desconsiderados_carta.columns:
         df_desconsiderados_carta['Salário Corrigido'] = df_desconsiderados_carta['Sal. Corrigido']
 
+    # Preenchendo valores vazios ou nulos nas colunas com valores padrão (se necessário)
+    df_desconsiderados_carta = df_desconsiderados_carta.fillna("")
+
     # Reestruturando a tabela para o formato solicitado
     df_desconsiderados_carta = df_desconsiderados_carta[['Seq.', 'Data', 'Salário', 'Índice', 'Salário Corrigido', 'Observação', 'Ano', 'Salário Corrigido']]
 
