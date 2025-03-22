@@ -131,13 +131,17 @@ if uploaded_cnis_txt and uploaded_carta_txt:
     df_desconsiderados_carta = df_carta[df_carta['Salário'].astype(float) < 1000]  # Exemplo de filtro
 
     # Agrupando os dados de salários desconsiderados
-    df_desconsiderados = pd.concat([df_desconsiderados_cnis, df_desconsiderados_carta], ignore_index=True)
-    file_output_desconsiderados = exportar_csv(df_desconsiderados, "Salarios_Desconsiderados")
+    file_output_desconsiderados_cnis = exportar_csv(df_desconsiderados_cnis, "Salarios_Desconsiderados_Cnis")
+    file_output_desconsiderados_carta = exportar_csv(df_desconsiderados_carta, "Salarios_Desconsiderados_Carta")
 
     # Exibindo os salários desconsiderados
-    st.subheader("📊 Salários Desconsiderados (CNIS e Carta)")
-    st.dataframe(df_desconsiderados, use_container_width=True)
-    st.download_button("⬇️ Baixar Salários Desconsiderados CSV", data=open(file_output_desconsiderados, 'rb'), file_name=file_output_desconsiderados, mime='text/csv')
+    st.subheader("📊 Salários Desconsiderados (CNIS)")
+    st.dataframe(df_desconsiderados_cnis, use_container_width=True)
+    st.download_button("⬇️ Baixar Salários Desconsiderados CNIS CSV", data=open(file_output_desconsiderados_cnis, 'rb'), file_name=file_output_desconsiderados_cnis, mime='text/csv')
+
+    st.subheader("📊 Salários Desconsiderados (Carta)")
+    st.dataframe(df_desconsiderados_carta, use_container_width=True)
+    st.download_button("⬇️ Baixar Salários Desconsiderados Carta CSV", data=open(file_output_desconsiderados_carta, 'rb'), file_name=file_output_desconsiderados_carta, mime='text/csv')
 
     # ===================== CAIXA DE DADOS ALIENÍGENAS =====================
 
