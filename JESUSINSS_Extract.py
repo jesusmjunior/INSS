@@ -6,85 +6,81 @@ from io import StringIO
 # ===================== CONFIG PÁGINA =====================
 st.set_page_config(page_title="Jesus e INSS | Extrator CNIS + Carta Benefício", layout="wide")
 
-# ===================== LOGIN =====================
-# Predefinido login e senha (você pode adicionar mais usuários facilmente depois)
-usuarios = {
-    'admin': 'admin123',  # Login e senha predefinidos
-}
+# ===================== LOGIN SIMPLES =====================
+def login():
+    st.title("🔐 Área Protegida - Login Obrigatório")
+    user = st.text_input("Usuário (Email)")
+    password = st.text_input("Senha", type="password")
 
-# Função de login
-def autenticar():
-    if "auth" not in st.session_state:
-        st.session_state.auth = False
-
-    if st.session_state.auth:
+    # Usuário e senha definidos
+    if user == "jesusmjunior2021@gmail.com" and password == "jr010507":
+        st.success("Login efetuado com sucesso ✅")
         return True
+    else:
+        if user and password:
+            st.error("Usuário ou senha incorretos ❌")
+        st.stop()  # Para bloquear acesso caso não logado
 
-    with st.form("login_form", clear_on_submit=True):
-        st.write("👤 Faça login para acessar os dados")
-        username = st.text_input("Usuário")
-        password = st.text_input("Senha", type="password")
-        submitted = st.form_submit_button("Entrar")
+# ===================== EXECUTA LOGIN =====================
+if login():  # Executa o login
+    # ===================== RECEPÇÃO DOS TXT =====================
+    col1, col2 = st.columns(2)
 
-        if submitted:
-            if username in usuarios and usuarios[username] == password:
-                st.session_state.auth = True
-                st.success(f"Bem-vindo, {username}!")
-                return True
-            else:
-                st.error("Usuário ou senha incorretos.")
-                return False
-    return False
+    with col1:
+        uploaded_cnis_txt = st.file_uploader("🔽 Upload do arquivo CNIS (TXT):", type="txt", key="cnis_txt")
 
-# ===================== FUNÇÕES BASE =====================
-def ler_texto(uploaded_file):
-    stringio = StringIO(uploaded_file.getvalue().decode("utf-8", errors='ignore'))
-    texto = stringio.read()
-    return texto
+    with col2:
+        uploaded_carta_txt = st.file_uploader("🔽 Upload do arquivo Carta Benefício (TXT):", type="txt", key="carta_txt")
 
+    # ===================== FUNÇÕES BASE =====================
 
-def estrutura_cnis(texto):
-    linhas = texto.split('\n')
-    data = []
-    for line in linhas:
-        match = re.search(r"(\d{2}/\d{4})\s+([0-9.]+,[0-9]{2})", line)
-        if match:
-            competencia = match.group(1)
-            remuneracao = match.group(2).replace('.', '').replace(',', '.')
-            data.append({'Competência': competencia, 'Remuneração': remuneracao})
-    return pd.DataFrame(data)
+    def ler_texto(uploaded_file):
+        stringio = StringIO(uploaded_file.getvalue().decode("utf-8", errors='ignore'))
+        texto = stringio.read()
+        return texto
 
 
-def estrutura_carta(texto):
-    linhas = texto.split('\n')
-    data = []
-    for line in linhas:
-        match = re.match(r"^(\d{3})\s+(\d{2}/\d{4})\s+([0-9.,]+)\s+([0-9.,]+)\s+([0-9.,]+)(\s+.*)?", line)
-        if match:
-            seq = match.group(1)
-            data_col = match.group(2)
-            salario = match.group(3).replace('.', '').replace(',', '.')
-            indice = match.group(4).replace(',', '.')
-            sal_corrigido = match.group(5).replace('.', '').replace(',', '.')
-            observacao = match.group(6).strip() if match.group(6) else ""
-            data.append({
-                'Seq.': seq,
-                'Data': data_col,
-                'Salário': salario,
-                'Índice': indice,
-                'Sal. Corrigido': sal_corrigido,
-                'Observação': observacao
-            })
-    return pd.DataFrame(data)
+    def estrutura_cnis(texto):
+        linhas = texto.split('\n')
+        data = []
+        for line in linhas:
+            match = re.search(r"(\d{2}/\d{4})\s+([0-9.]+,[0-9]{2})", line)
+            if match:
+                competencia = match.group(1)
+                remuneracao = match.group(2).replace('.', '').replace(',', '.')
+                data.append({'Competência': competencia, 'Remuneração': remuneracao})
+        return pd.DataFrame(data)
 
 
-def exportar_csv(df, nome_base):
-    df.to_csv(f"{nome_base}.csv", index=False)
-    return f"{nome_base}.csv"
+    def estrutura_carta(texto):
+        linhas = texto.split('\n')
+        data = []
+        for line in linhas:
+            match = re.match(r"^(\d{3})\s+(\d{2}/\d{4})\s+([0-9.,]+)\s+([0-9.,]+)\s+([0-9.,]+)(\s+.*)?", line)
+            if match:
+                seq = match.group(1)
+                data_col = match.group(2)
+                salario = match.group(3).replace('.', '').replace(',', '.')
+                indice = match.group(4).replace(',', '.')
+                sal_corrigido = match.group(5).replace('.', '').replace(',', '.')
+                observacao = match.group(6).strip() if match.group(6) else ""
+                data.append({
+                    'Seq.': seq,
+                    'Data': data_col,
+                    'Salário': salario,
+                    'Índice': indice,
+                    'Sal. Corrigido': sal_corrigido,
+                    'Observação': observacao
+                })
+        return pd.DataFrame(data)
 
-# ===================== LAYOUT COM TABELAS =====================
 
-if autenticar():  # Verifica se o usuário foi autenticado
+    def exportar_csv(df, nome_base):
+        df.to_csv(f"{nome_base}.csv", index=False)
+        return f"{nome_base}.csv"
+
+    # ===================== LAYOUT COM TABELAS =====================
+
     st.subheader("📊 Tabelas Organizacionais")
 
     col3, col4 = st.columns(2)
@@ -120,5 +116,3 @@ if autenticar():  # Verifica se o usuário foi autenticado
     # ===================== FEEDBACK =====================
     if uploaded_cnis_txt is None and uploaded_carta_txt is None:
         st.info("👆 Faça upload dos arquivos CNIS e Carta Benefício em TXT para iniciar.")
-else:
-    st.warning("⚠️ Você precisa se autenticar para acessar o conteúdo.")
