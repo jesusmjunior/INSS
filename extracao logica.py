@@ -10,36 +10,6 @@ st.set_page_config(page_title="Jesus e INSS | Sistema Completo", layout="wide")
 st.title("📄 JESUS e INSS - Extrator CNIS & Carta Benefício")
 st.write("**Recepção de arquivos TXT bagunçados ➔ Organização ➔ Visualização das tabelas completas ➔ Exportação CSV.**")
 
-# ===================== ABA DE LOGIN =====================
-def login():
-    if 'login_visible' not in st.session_state:
-        st.session_state.login_visible = True
-
-    if st.session_state.login_visible:
-        with st.expander("🔐 Área Protegida - Login Obrigatório", expanded=True):
-            user = st.text_input("Usuário (Email)")
-            password = st.text_input("Senha", type="password")
-
-            usuarios = {
-                "jesusmjunior2021@gmail.com": "jr010507",
-                "joliveiramaccf@gmail.com": "cgti@383679"
-            }
-
-            if (user in usuarios and password == usuarios[user]):
-                st.success("Login efetuado com sucesso ✅")
-                if st.button("Ocultar Login"):
-                    st.session_state.login_visible = False
-                return True
-            else:
-                if user and password:
-                    st.error("Usuário ou senha incorretos ❌")
-                st.stop()
-    else:
-        st.info("Login ocultado. Clique abaixo para reexibir.")
-        if st.button("Mostrar Login"):
-            st.session_state.login_visible = True
-            st.experimental_rerun()
-
 # ===================== FUNÇÕES DE LEITURA E ESTRUTURAÇÃO =====================
 
 def ler_texto(uploaded_file):
@@ -129,8 +99,16 @@ if uploaded_cnis_txt and uploaded_carta_txt:
     # Filtrando os salários desconsiderados com base na Observação "DESCONSIDERADO"
     df_desconsiderados_carta = df_carta[df_carta['Observação'] == 'DESCONSIDERADO']
 
+    # Criando a coluna "Ano" a partir da coluna "Data", caso não exista
+    if 'Ano' not in df_desconsiderados_carta.columns:
+        df_desconsiderados_carta['Ano'] = df_desconsiderados_carta['Data'].apply(lambda x: x.split('/')[1] if isinstance(x, str) else '')
+
+    # Criando ou ajustando a coluna "Salário Corrigido"
+    if 'Salário Corrigido' not in df_desconsiderados_carta.columns:
+        df_desconsiderados_carta['Salário Corrigido'] = df_desconsiderados_carta['Sal. Corrigido']
+
     # Reestruturando a tabela para o formato solicitado
-    df_desconsiderados_carta = df_desconsiderados_carta[['Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Salário Corrigido']]
+    df_desconsiderados_carta = df_desconsiderados_carta[['Seq.', 'Data', 'Salário', 'Índice', 'Salário Corrigido', 'Observação', 'Ano', 'Salário Corrigido']]
 
     # Exportando os salários desconsiderados da Carta para CSV
     file_output_desconsiderados_carta = exportar_csv(df_desconsiderados_carta, "Salarios_Desconsiderados_Carta_Formatted")
