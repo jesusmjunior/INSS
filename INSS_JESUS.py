@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 # ================================
-# CONFIGURAÇÃO INICIAL PRIMEIRA LINHA
+# CONFIGURAÇÃO INICIAL
 # ================================
 st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
 
@@ -22,95 +22,77 @@ def login():
     else:
         if user and password:
             st.error("Usuário ou senha incorretos ❌")
-        st.stop()  # Para bloquear acesso caso não logado
+        return False
 
 # ================================
-# EXECUTA LOGIN
+# FUNÇÕES DE PROCESSAMENTO
+# ================================
+
+# Organiza o CNIS (para os dados exportados em CSV ou XLSX)
+def organizar_cnis(file):
+    df = pd.read_csv(file, delimiter=';', encoding='utf-8')
+
+    # Divide a primeira coluna em várias partes com base na vírgula
+    df_split = df.iloc[:, 0].str.split(',', expand=True)
+    df_split.columns = ['Seq', 'Competência', 'Remuneração', 'Ano'][:df_split.shape[1]]
+
+    # Converte a coluna 'Remuneração' para numérico e aplica o filtro fuzzy
+    df_split['Remuneração'] = pd.to_numeric(df_split['Remuneração'], errors='coerce')
+    df_split = df_split[df_split['Remuneração'] < 50000]  # Filtro fuzzy
+    return df_split
+
+# Organiza os dados da Carta Benefício
+def organizar_desconsiderados(file):
+    df = pd.read_csv(file, delimiter=';', encoding='utf-8')
+    df = df.iloc[:, 0].str.split(',', expand=True)
+    df.columns = ['Seq', 'Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Duplicado']
+    df['Sal. Corrigido'] = pd.to_numeric(df['Sal. Corrigido'], errors='coerce')
+    return df
+
+# Calcula o fator previdenciário
+def fator_previdenciario(Tc, Es, Id, a=0.31):
+    return round((Tc * a / Es) * (1 + ((Id + Tc * a) / 100)), 4)
+
+# Formatação para moeda
+def formatar_moeda(valor):
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# ================================
+# EXECUÇÃO DO APP
 # ================================
 if login():  # Executa o login
-    # ================================
-    # FUNÇÕES UTILITÁRIAS
-    # ================================
 
-    # Organiza o CNIS (para os dados exportados em CSV ou XLSX)
-    def organizar_cnis(file):
-        # Lê o arquivo CSV
-        df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-        
-        # Divide a primeira coluna em várias partes com base na vírgula
-        df_split = df.iloc[:, 0].str.split(',', expand=True)
-
-        # Verifica o número de colunas geradas
-        expected_columns = 4
-        if df_split.shape[1] != expected_columns:
-            st.warning(f"Nota: Esperado {expected_columns} colunas, mas foram encontradas {df_split.shape[1]} colunas. Continuando o processamento...")
-        
-        # Definindo os nomes das colunas de forma flexível, dependendo do número real de colunas
-        df_split.columns = ['Seq', 'Competência', 'Remuneração', 'Ano'][:df_split.shape[1]]
-
-        # Converte a coluna 'Remuneração' para numérico e aplica o filtro fuzzy
-        df_split['Remuneração'] = pd.to_numeric(df_split['Remuneração'], errors='coerce')
-        df_split = df_split[df_split['Remuneração'] < 50000]  # Remove discrepantes - fuzzy
-
-        return df_split
-
-    # Organiza os dados da Carta Benefício (dados exportados em CSV ou XLSX)
-    def organizar_desconsiderados(file):
-        df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-        df = df.iloc[:, 0].str.split(',', expand=True)
-        df.columns = ['Seq', 'Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Duplicado']
-        df['Sal. Corrigido'] = pd.to_numeric(df['Sal. Corrigido'], errors='coerce')
-        return df
-
-    # Calcula o fator previdenciário
-    def fator_previdenciario(Tc, Es, Id, a=0.31):
-        fator = (Tc * a / Es) * (1 + ((Id + Tc * a) / 100))
-        return round(fator, 4)
-
-    # Formatação para moeda
-    def formatar_moeda(valor):
-        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-    # ================================
-    # UPLOAD
-    # ================================
+    # UPLOAD DOS ARQUIVOS
     st.sidebar.header("🔽 Upload dos Arquivos")
     cnis_file = st.sidebar.file_uploader("Upload - CNIS", type=["csv"])
     carta_file = st.sidebar.file_uploader("Upload - Carta", type=["csv"])
     desconsid_file = st.sidebar.file_uploader("Upload - Desconsiderados", type=["csv"])
 
+    # Navegação
     aba = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório"])
 
-    # ================================
-    # PROCESSAMENTO PRINCIPAL
-    # ================================
+    # Verificando se os arquivos foram carregados
     if cnis_file and carta_file and desconsid_file:
-
+        # Processando os arquivos
         df_cnis = organizar_cnis(cnis_file)
         df_desconsiderados = organizar_desconsiderados(desconsid_file)
 
-        # 80% MAIORES SALÁRIOS
+        # Processamento para os 80% maiores salários
         df_cnis_sorted = df_cnis.sort_values(by='Remuneração', ascending=False)
         qtd_80 = int(len(df_cnis_sorted) * 0.8)
         df_top80 = df_cnis_sorted.head(qtd_80)
-        df_bottom10 = df_cnis_sorted.tail(len(df_cnis_sorted) - qtd_80)
 
-        # DESCONSIDERADOS VANTAJOSOS
-        min_80 = df_top80['Remuneração'].min()
-        df_vantajosos = df_desconsiderados[df_desconsiderados['Sal. Corrigido'] > min_80]
-
-        # PARÂMETROS DEFAULT
+        # Calculando os parâmetros
         Tc_default, Es_default, Id_default, a_default = 38, 21.8, 60, 0.31
         media_salarios = df_top80['Remuneração'].mean()
         fator = fator_previdenciario(Tc_default, Es_default, Id_default, a_default)
         salario_beneficio = round(media_salarios * fator, 2)
 
-        # FORMATAÇÃO MOEDA
+        # Formatação monetária
         df_top80['Remuneração'] = df_top80['Remuneração'].apply(formatar_moeda)
-        df_vantajosos['Sal. Corrigido'] = df_vantajosos['Sal. Corrigido'].apply(formatar_moeda)
 
         # ================================
-        # DASHBOARD PRINCIPAL
+        # ABAS PRINCIPAIS
         # ================================
         if aba == "Dashboard":
             st.title("📑 Dashboard Previdenciário Profissional")
@@ -118,7 +100,7 @@ if login():  # Executa o login
             col1, col2, col3 = st.columns(3)
             col1.metric("Total CNIS", len(df_cnis))
             col2.metric("80% Maiores Salários", len(df_top80))
-            col3.metric("Desconsid. Reaproveitados", len(df_vantajosos))
+            col3.metric("Salário de Benefício", formatar_moeda(salario_beneficio))
 
             st.subheader("🧮 Resultados Previdenciários")
             st.write(f"**Média dos 80% maiores salários:** {formatar_moeda(media_salarios)}")
@@ -127,20 +109,13 @@ if login():  # Executa o login
 
             st.subheader("📄 Tabelas Detalhadas")
             st.dataframe(df_top80)
-            st.dataframe(df_vantajosos)
 
-        # ================================
-        # GRÁFICOS
-        # ================================
         elif aba == "Gráficos":
             st.title("📊 Visualização Gráfica")
             df_grafico = df_cnis_sorted.head(qtd_80)
             st.bar_chart(data=df_grafico, x='Competência', y='Remuneração')
             st.line_chart(data=df_grafico, x='Competência', y='Remuneração')
 
-        # ================================
-        # EXPLICAÇÃO
-        # ================================
         elif aba == "Explicação":
             st.title("📖 Explicação Detalhada")
             st.markdown("### Fórmulas Aplicadas:")
@@ -159,9 +134,6 @@ if login():  # Executa o login
             ''')
             st.markdown(f"**Média = {formatar_moeda(media_salarios)}, Fator = {fator}, Resultado = {formatar_moeda(salario_beneficio)}**")
 
-        # ================================
-        # SIMULADOR
-        # ================================
         elif aba == "Simulador":
             st.title("⚙️ Simulador Previdenciário")
             Tc_input = st.number_input("Tempo de Contribuição (anos)", value=38)
@@ -173,9 +145,6 @@ if login():  # Executa o login
             st.write(f"**Fator Previdenciário Simulado:** {fator_simulado}")
             st.write(f"**Salário Benefício Simulado:** {formatar_moeda(salario_simulado)}")
 
-        # ================================
-        # RELATÓRIO FINAL
-        # ================================
         elif aba == "Relatório":
             st.title("📄 Relatório Previdenciário Consolidado")
 
@@ -186,14 +155,14 @@ if login():  # Executa o login
             """)
             st.markdown(f"**Total de registros CNIS:** {len(df_cnis)}")
             st.markdown(f"**80% maiores salários considerados:** {len(df_top80)}")
-            st.markdown(f"**Salários desconsiderados reaproveitados:** {len(df_vantajosos)}")
+            st.markdown(f"**Salários desconsiderados reaproveitados:** {len(df_desconsiderados)}")
             st.markdown("---")
 
             st.subheader("📌 Detalhamento dos 80% Maiores Salários")
             st.dataframe(df_top80)
 
             st.subheader("📌 Salários Desconsiderados Reaproveitados")
-            st.dataframe(df_vantajosos)
+            st.dataframe(df_desconsiderados)
 
             st.subheader("📌 Fórmula Previdenciária Aplicada")
             st.latex(r'''
