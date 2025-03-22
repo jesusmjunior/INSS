@@ -64,7 +64,7 @@ cnis_file = st.sidebar.file_uploader("Upload - CNIS", type=["csv"])
 carta_file = st.sidebar.file_uploader("Upload - Carta", type=["csv"])
 desconsid_file = st.sidebar.file_uploader("Upload - Desconsiderados", type=["csv"])
 
-aba = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório", "Atualização Monetária"])
+aba = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório", "Atualização Monetária", "Extrator"])
 
 # ================================
 # PROCESSAMENTO PRINCIPAL
@@ -95,160 +95,87 @@ if cnis_file and carta_file and desconsid_file:
     df_vantajosos['Sal. Corrigido'] = df_vantajosos['Sal. Corrigido'].apply(formatar_moeda)
 
     # ================================
-    # DASHBOARD PRINCIPAL
+    # EXTRATOR (Nova Aba)
     # ================================
-    if aba == "Dashboard":
-        st.title("📑 Dashboard Previdenciário Profissional")
+    if aba == "Extrator":
+        st.title("📄 Extrator CNIS & Carta Benefício")
+        st.write("Recepção de arquivos TXT bagunçados ➔ Organização ➔ Visualização das tabelas completas ➔ Exportação CSV.")
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total CNIS", len(df_cnis))
-        col2.metric("80% Maiores Salários", len(df_top80))
-        col3.metric("Desconsid. Reaproveitados", len(df_vantajosos))
+        col1, col2 = st.columns(2)
 
-        st.subheader("🧮 Resultados Previdenciários")
-        st.write(f"**Média dos 80% maiores salários:** {formatar_moeda(media_salarios)}")
-        st.write(f"**Fator Previdenciário:** {fator}")
-        st.write(f"**Salário de Benefício:** {formatar_moeda(salario_beneficio)}")
+        with col1:
+            uploaded_cnis_txt = st.file_uploader("🔽 Upload do arquivo CNIS (TXT):", type="txt", key="cnis_txt")
 
-        st.subheader("📄 Tabelas Detalhadas")
-        st.dataframe(df_top80)
-        st.dataframe(df_vantajosos)
+        with col2:
+            uploaded_carta_txt = st.file_uploader("🔽 Upload do arquivo Carta Benefício (TXT):", type="txt", key="carta_txt")
 
-    # ================================
-    # GRÁFICOS
-    # ================================
-    elif aba == "Gráficos":
-        st.title("📊 Visualização Gráfica")
-        df_grafico = df_cnis_sorted.head(qtd_80)
-        st.bar_chart(data=df_grafico, x='Competência', y='Remuneração')
-        st.line_chart(data=df_grafico, x='Competência', y='Remuneração')
+        # Funções de Leitura e Estruturação
+        def ler_texto(uploaded_file):
+            stringio = StringIO(uploaded_file.getvalue().decode("utf-8", errors='ignore'))
+            texto = stringio.read()
+            return texto
 
-    # ================================
-    # EXPLICAÇÃO
-    # ================================
-    elif aba == "Explicação":
-        st.title("📖 Explicação Detalhada")
-        st.markdown("### Fórmulas Aplicadas:")
-        st.latex(r'''
-        Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)
-        ''')
-        st.markdown(f"""
-        Onde:
-        - $T_c = 38$ anos (Tempo de Contribuição)
-        - $E_s = 21,8$ anos (Expectativa Sobrevida)
-        - $I_d = 60$ anos (Idade)
-        - $a = 0,31$ (Alíquota)
-        """)
-        st.latex(r'''
-        Salário\ de\ Benefício = Média_{80\%} \times Fator
-        ''')
-        st.markdown(f"**Média = {formatar_moeda(media_salarios)}, Fator = {fator}, Resultado = {formatar_moeda(salario_beneficio)}**")
+        def estrutura_cnis(texto):
+            linhas = texto.split('\n')
+            data = []
+            for line in linhas:
+                match = re.search(r"(\d{2}/\d{4})\s+([0-9.]+,[0-9]{2})", line)
+                if match:
+                    competencia = match.group(1)
+                    remuneracao = match.group(2).replace('.', '').replace(',', '.')
+                    data.append({'Competência': competencia, 'Remuneração': remuneracao, 'Origem': 'CNIS'})
+            return pd.DataFrame(data)
 
-    # ================================
-    # SIMULADOR
-    # ================================
-    elif aba == "Simulador":
-        st.title("⚙️ Simulador Previdenciário")
-        Tc_input = st.number_input("Tempo de Contribuição (anos)", value=38)
-        Es_input = st.number_input("Expectativa Sobrevida", value=21.8)
-        Id_input = st.number_input("Idade", value=60)
-        a_input = st.number_input("Alíquota", value=0.31)
-        fator_simulado = fator_previdenciario(Tc_input, Es_input, Id_input, a_input)
-        salario_simulado = round(media_salarios * fator_simulado, 2)
-        st.write(f"**Fator Previdenciário Simulado:** {fator_simulado}")
-        st.write(f"**Salário Benefício Simulado:** {formatar_moeda(salario_simulado)}")
+        def estrutura_carta(texto):
+            linhas = texto.split('\n')
+            data = []
+            for line in linhas:
+                match = re.match(r"^(\d{3})\s+(\d{2}/\d{4})\s+([0-9.,]+)\s+([0-9.,]+)\s+([0-9.,]+)(\s+.*)?", line)
+                if match:
+                    seq = match.group(1)
+                    data_col = match.group(2)
+                    salario = match.group(3).replace('.', '').replace(',', '.')
+                    indice = match.group(4).replace(',', '.')
+                    sal_corrigido = match.group(5).replace('.', '').replace(',', '.')
+                    observacao = match.group(6).strip() if match.group(6) else ""
+                    data.append({
+                        'Seq.': seq,
+                        'Data': data_col,
+                        'Salário': salario,
+                        'Índice': indice,
+                        'Sal. Corrigido': sal_corrigido,
+                        'Observação': observacao,
+                        'Origem': 'Carta Benefício'
+                    })
+            return pd.DataFrame(data)
 
-    # ================================
-    # RELATÓRIO FINAL
-    # ================================
-    elif aba == "Relatório":
-        st.title("📄 Relatório Previdenciário Consolidado")
+        def exportar_csv(df, nome_base):
+            df.to_csv(f"{nome_base}.csv", index=False)
+            return f"{nome_base}.csv"
 
-        st.markdown("""
-        ## Relatório Consolidado
-        
-        Este relatório apresenta os resultados detalhados do processamento previdenciário conforme os dados enviados e as regras aplicadas.
-        """)
-        st.markdown(f"**Total de registros CNIS:** {len(df_cnis)}")
-        st.markdown(f"**80% maiores salários considerados:** {len(df_top80)}")
-        st.markdown(f"**Salários desconsiderados reaproveitados:** {len(df_vantajosos)}")
-        st.markdown("---")
+        # Processamento e Exibição
+        if uploaded_cnis_txt and uploaded_carta_txt:
+            texto_cnis = ler_texto(uploaded_cnis_txt)
+            df_cnis = estrutura_cnis(texto_cnis)
 
-        st.subheader("📌 Detalhamento dos 80% Maiores Salários")
-        st.dataframe(df_top80)
+            texto_carta = ler_texto(uploaded_carta_txt)
+            df_carta = estrutura_carta(texto_carta)
 
-        st.subheader("📌 Salários Desconsiderados Reaproveitados")
-        st.dataframe(df_vantajosos)
+            file_cnis = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
+            file_carta = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
+            st.download_button("⬇️ Baixar CNIS CSV", data=open(file_cnis, 'rb'), file_name=file_cnis, mime='text/csv')
+            st.download_button("⬇️ Baixar Carta CSV", data=open(file_carta, 'rb'), file_name=file_carta, mime='text/csv')
 
-        st.subheader("📌 Fórmula Previdenciária Aplicada")
-        st.latex(r'''
-        Fator\ Previdenci\u00e1rio = \frac{T_c \times a}{E_s} \times \left(1 + \frac{I_d + T_c \times a}{100}\right)
-        ''')
-        st.markdown(f"**Fator aplicado:** {fator}")
-        st.markdown(f"**Média dos salários:** {formatar_moeda(media_salarios)}")
-        st.markdown(f"**Salário de Benefício Final:** {formatar_moeda(salario_beneficio)}")
-        st.markdown("---")
+            # Salários Desconsiderados
+            df_desconsiderados_cnis = df_cnis[df_cnis['Remuneração'].astype(float) < 1000]
+            df_desconsiderados_carta = df_carta[df_carta['Salário'].astype(float) < 1000]
+            df_desconsiderados = pd.concat([df_desconsiderados_cnis, df_desconsiderados_carta], ignore_index=True)
+            file_output_desconsiderados = exportar_csv(df_desconsiderados, "Salarios_Desconsiderados")
+            st.download_button("⬇️ Baixar Salários Desconsiderados CSV", data=open(file_output_desconsiderados, 'rb'), file_name=file_output_desconsiderados, mime='text/csv')
 
-        st.markdown("📎 **Este relatório pode ser impresso diretamente em PDF.**")
-
-    # ================================
-    # ATUALIZAÇÃO MONETÁRIA
-    # ================================
-    elif aba == "Atualização Monetária":
-        st.title("💰 Atualização Monetária por Período Econômico")
-        st.markdown("Aplique atualização monetária em cascata com índices ajustáveis para planos econômicos.")
-
-        indices_ano = {
-            '1980': st.number_input("Índice 1980-1990", value=5000.0),
-            '1990': st.number_input("Índice 1990-1994", value=1000.0),
-            '1994': st.number_input("Índice 1994-2000", value=2.75),
-            '2000': st.number_input("Índice 2000-2010", value=1.3),
-            '2010': st.number_input("Índice 2010-2020", value=1.1),
-            '2020': st.number_input("Índice 2020+", value=1.05),
-        }
-
-        def atualizar_valor_plano(competencia, salario):
-            ano = int(competencia.split('/')[-1])
-            if ano < 1990:
-                fator = indices_ano['1980']
-            elif ano < 1994:
-                fator = indices_ano['1990']
-            elif ano < 2000:
-                fator = indices_ano['1994']
-            elif ano < 2010:
-                fator = indices_ano['2000']
-            elif ano < 2020:
-                fator = indices_ano['2010']
-            else:
-                fator = indices_ano['2020']
-            salario_corrigido = salario * fator
-            return round(salario_corrigido, 2)
-
-        df_cnis['Remuneração Corrigida'] = df_cnis.apply(
-            lambda row: atualizar_valor_plano(str(row['Competência']), row['Remuneração']), axis=1
-        )
-
-        st.subheader("Tabela com Remunerações Corrigidas")
-        st.dataframe(df_cnis[['Competência', 'Remuneração', 'Remuneração Corrigida']])
-
-        salarios_corrigidos = df_cnis['Remuneração Corrigida'].dropna().astype(float)
-        salarios_ordenados = salarios_corrigidos.sort_values(ascending=False)
-        n_corrigido = int(len(salarios_ordenados) * 0.8)
-        media_80_corrigida = round(salarios_ordenados.iloc[:n_corrigido].mean(), 2)
-        salario_beneficio_corrigido = round(media_80_corrigida * fator, 2)
-
-        st.write(f"**Média dos 80% maiores salários corrigidos:** {formatar_moeda(media_80_corrigida)}")
-        st.write(f"**Salário de Benefício Corrigido:** {formatar_moeda(salario_beneficio_corrigido)}")
-
-        # Log auditável
-        log_corrigido = {
-            'Índices Econômicos Aplicados': indices_ano,
-            'Média 80% Corrigida': media_80_corrigida,
-            'Fator Previdenciário': fator,
-            'Salário Benefício Corrigido': salario_beneficio_corrigido
-        }
-        log_json = json.dumps(log_corrigido, indent=4)
-        st.download_button("Baixar Log Auditável", log_json, file_name="log_auditoria_corrigido.json")
+        else:
+            st.info("👆 Faça upload dos arquivos CNIS e Carta Benefício em TXT para iniciar.")
 
 else:
     st.info("🔔 Faça upload dos 3 arquivos obrigatórios para liberar o dashboard.")
+
