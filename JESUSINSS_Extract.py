@@ -39,7 +39,6 @@ if login():  # Executa o login
         texto = stringio.read()
         return texto
 
-
     def estrutura_cnis(texto):
         linhas = texto.split('\n')
         data = []
@@ -50,7 +49,6 @@ if login():  # Executa o login
                 remuneracao = match.group(2).replace('.', '').replace(',', '.')
                 data.append({'Competência': competencia, 'Remuneração': remuneracao})
         return pd.DataFrame(data)
-
 
     def estrutura_carta(texto):
         linhas = texto.split('\n')
@@ -74,10 +72,10 @@ if login():  # Executa o login
                 })
         return pd.DataFrame(data)
 
-
     def exportar_csv(df, nome_base):
-        df.to_csv(f"{nome_base}.csv", index=False)
-        return f"{nome_base}.csv"
+        nome_arquivo = f"{nome_base}.csv"
+        df.to_csv(nome_arquivo, index=False)
+        return nome_arquivo
 
     # ===================== SEPARAÇÃO DOS DADOS =====================
 
