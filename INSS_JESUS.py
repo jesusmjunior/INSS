@@ -34,12 +34,25 @@ if login():  # Executa o login
 
     # Organiza o CNIS (para os dados exportados em CSV ou XLSX)
     def organizar_cnis(file):
+        # Lê o arquivo CSV
         df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-        df = df.iloc[:, 0].str.split(',', expand=True)
-        df.columns = ['Seq', 'Competência', 'Remuneração', 'Ano']
-        df['Remuneração'] = pd.to_numeric(df['Remuneração'], errors='coerce')
-        df = df[df['Remuneração'] < 50000]  # Remove discrepantes - fuzzy
-        return df
+        
+        # Divide a primeira coluna em várias partes com base na vírgula
+        df_split = df.iloc[:, 0].str.split(',', expand=True)
+
+        # Verifica se o número de colunas geradas é o esperado (4 no caso)
+        expected_columns = 4
+        if df_split.shape[1] == expected_columns:
+            df_split.columns = ['Seq', 'Competência', 'Remuneração', 'Ano']
+        else:
+            st.error(f"Erro ao processar os dados: Esperado {expected_columns} colunas, mas encontrado {df_split.shape[1]} colunas.")
+            st.stop()  # Para o processamento caso o número de colunas não seja o esperado
+
+        # Converte a coluna 'Remuneração' para numérico e aplica o filtro fuzzy
+        df_split['Remuneração'] = pd.to_numeric(df_split['Remuneração'], errors='coerce')
+        df_split = df_split[df_split['Remuneração'] < 50000]  # Remove discrepantes - fuzzy
+
+        return df_split
 
     # Organiza os dados da Carta Benefício (dados exportados em CSV ou XLSX)
     def organizar_desconsiderados(file):
