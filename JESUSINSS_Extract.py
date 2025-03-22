@@ -79,6 +79,16 @@ if login():  # Executa o login
         df.to_csv(f"{nome_base}.csv", index=False)
         return f"{nome_base}.csv"
 
+    # ===================== SEPARAÇÃO DOS DADOS =====================
+
+    def separar_desconsiderados(df_carta):
+        # Filtra os dados considerados (sem "DESCONSIDERADO" na coluna Observação)
+        df_considerados = df_carta[df_carta['Observação'] != 'DESCONSIDERADO']
+        # Filtra os dados desconsiderados (com "DESCONSIDERADO" na coluna Observação)
+        df_desconsiderados = df_carta[df_carta['Observação'] == 'DESCONSIDERADO']
+        
+        return df_considerados, df_desconsiderados
+
     # ===================== LAYOUT COM TABELAS =====================
 
     st.subheader("📊 Tabelas Organizacionais")
@@ -108,6 +118,27 @@ if login():  # Executa o login
                 st.dataframe(df_carta, use_container_width=True)
                 file_output = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
                 st.download_button("⬇️ Baixar Carta CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
+
+                # Separando os dados considerados e desconsiderados
+                df_considerados, df_desconsiderados = separar_desconsiderados(df_carta)
+                
+                # Exibindo os dados considerados
+                st.subheader("📄 Dados Considerados")
+                if not df_considerados.empty:
+                    st.dataframe(df_considerados, use_container_width=True)
+                    file_output_considerados = exportar_csv(df_considerados, "Dados_Considerados")
+                    st.download_button("⬇️ Baixar Dados Considerados CSV", data=open(file_output_considerados, 'rb'), file_name=file_output_considerados, mime='text/csv')
+                else:
+                    st.warning("⚠️ Nenhum dado considerado identificado.")
+
+                # Exibindo os dados desconsiderados
+                st.subheader("📄 Dados Desconsiderados")
+                if not df_desconsiderados.empty:
+                    st.dataframe(df_desconsiderados, use_container_width=True)
+                    file_output_desconsiderados = exportar_csv(df_desconsiderados, "Dados_Desconsiderados")
+                    st.download_button("⬇️ Baixar Dados Desconsiderados CSV", data=open(file_output_desconsiderados, 'rb'), file_name=file_output_desconsiderados, mime='text/csv')
+                else:
+                    st.warning("⚠️ Nenhum dado desconsiderado identificado.")
             else:
                 st.warning("⚠️ Nenhum dado da Carta identificado.")
         else:
