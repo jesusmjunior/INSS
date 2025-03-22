@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import re
+from io import StringIO
 
 # ================================
 # CONFIGURAÇÃO INICIAL PRIMEIRA LINHA
@@ -32,38 +33,90 @@ login()
 # ================================
 # FUNÇÕES UTILITÁRIAS
 # ================================
+
+# Organiza o CNIS (para os dados exportados em CSV ou XLSX)
 def organizar_cnis(file):
-    df = pd.read_csv(file, delimiter=';', encoding='utf-8')
+    if file.name.endswith('.xlsx'):
+        df = pd.read_excel(file)
+    else:
+        df = pd.read_csv(file, delimiter=';', encoding='utf-8')
+    
+    # Ajustando a estrutura da tabela CNIS
     df = df.iloc[:,0].str.split(',', expand=True)
     df.columns = ['Seq', 'Competência', 'Remuneração', 'Ano']
+    
+    # Convertendo 'Remuneração' para valor numérico
     df['Remuneração'] = pd.to_numeric(df['Remuneração'], errors='coerce')
-    df = df[df['Remuneração'] < 50000]  # Remove discrepantes - fuzzy
+    
+    # Aplicando filtro fuzzy (removendo valores discrepantes)
+    df = df[df['Remuneração'] < 50000]  # Remove valores discrepantes (fuzzy)
+    
     return df
 
+# Organiza os dados da Carta Benefício (dados exportados em CSV ou XLSX)
 def organizar_desconsiderados(file):
-    df = pd.read_csv(file, delimiter=';', encoding='utf-8')
+    if file.name.endswith('.xlsx'):
+        df = pd.read_excel(file)
+    else:
+        df = pd.read_csv(file, delimiter=';', encoding='utf-8')
+    
+    # Ajustando a estrutura da tabela Carta de Benefício
     df = df.iloc[:,0].str.split(',', expand=True)
     df.columns = ['Seq', 'Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Duplicado']
+    
+    # Convertendo 'Sal. Corrigido' para valor numérico
     df['Sal. Corrigido'] = pd.to_numeric(df['Sal. Corrigido'], errors='coerce')
+    
     return df
 
+# ================================
+# FUNÇÃO DE FATOR PREVIDENCIÁRIO (EXEMPLO)
+# ================================
 def fator_previdenciario(Tc, Es, Id, a=0.31):
     fator = (Tc * a / Es) * (1 + ((Id + Tc * a) / 100))
     return round(fator, 4)
 
+# ================================
+# FUNÇÃO DE FORMATAÇÃO DE MOEDA
+# ================================
 def formatar_moeda(valor):
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    
+# ================================
+# FUNÇÃO DE EXPORTAÇÃO XLSX (USANDO STREAMLIT)
+# ================================
+def exportar_xlsx(df, nome_base):
+    # Salvar em um buffer em memória
+    output = StringIO()
+    df.to_excel(output, index=False, engine='xlsxwriter')
+    return output.getvalue()
 
 # ================================
-# UPLOAD
+# FUNÇÃO DE RECEPÇÃO E PROCESSAMENTO DE ARQUIVOS
 # ================================
-st.sidebar.header("🔽 Upload dos Arquivos")
-cnis_file = st.sidebar.file_uploader("Upload - CNIS", type=["csv"])
-carta_file = st.sidebar.file_uploader("Upload - Carta", type=["csv"])
-desconsid_file = st.sidebar.file_uploader("Upload - Desconsiderados", type=["csv"])
+def recepcao_arquivos():
+    uploaded_cnis_file = st.file_uploader("🔽 Upload do arquivo CNIS", type=["txt", "csv", "xlsx"])
+    uploaded_carta_file = st.file_uploader("🔽 Upload do arquivo Carta Benefício", type=["txt", "csv", "xlsx"])
 
-aba = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório"])
+    if uploaded_cnis_file is not None:
+        df_cnis = organizar_cnis(uploaded_cnis_file)
+        st.dataframe(df_cnis, use_container_width=True)
+        # Exportando como XLSX com Streamlit
+        file_output_cnis = exportar_xlsx(df_cnis, "CNIS_Organizado")
+        st.download_button("⬇️ Baixar CNIS XLSX", data=file_output_cnis, file_name="CNIS_Organizado.xlsx", mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
+    if uploaded_carta_file is not None:
+        df_carta = organizar_desconsiderados(uploaded_carta_file)
+        st.dataframe(df_carta, use_container_width=True)
+        # Exportando como XLSX com Streamlit
+        file_output_carta = exportar_xlsx(df_carta, "Carta_Beneficio_Organizada")
+        st.download_button("⬇️ Baixar Carta XLSX", data=file_output_carta, file_name="Carta_Beneficio_Organizada.xlsx", mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+# ================================
+# EXECUÇÃO DA FUNÇÃO
+# ================================
+if __name__ == "__main__":
+    recepcao_arquivos()
 # ================================
 # PROCESSAMENTO PRINCIPAL
 # ================================
