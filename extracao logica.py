@@ -29,16 +29,11 @@ def estrutura_cnis(texto):
             data.append({'Competência': competencia, 'Remuneração': remuneracao, 'Observação': 'Dados CNIS'})
     df = pd.DataFrame(data)
     
-    # Verificando a estrutura do DataFrame antes de renomear
-    st.write("Estrutura do DataFrame CNIS antes de renomear:")
-    st.write(df.head())
-
-    # Verificando se o número de colunas está correto
-    if len(df.columns) != 3:
-        st.error(f"O número de colunas é {len(df.columns)}, mas esperamos 3 colunas. Ajuste o arquivo!")
-        return None
-
-    df.columns = ['Competência', 'Remuneração', 'Observação']
+    # Limpeza de dados (preenchendo valores nulos com valores padrão)
+    df = df.fillna("")
+    
+    # Garantir que os tipos de dados sejam compatíveis
+    df['Remuneração'] = pd.to_numeric(df['Remuneração'], errors='coerce')  # Garantir que 'Remuneração' seja numérico
     return df
 
 
@@ -64,9 +59,12 @@ def estrutura_carta(texto):
             })
     df = pd.DataFrame(data)
     
-    # Verificando a estrutura do DataFrame antes de renomear
-    st.write("Estrutura do DataFrame Carta Benefício antes de renomear:")
-    st.write(df.head())
+    # Limpeza de dados (preenchendo valores nulos com valores padrão)
+    df = df.fillna("")
+    
+    # Garantir que os tipos de dados sejam compatíveis
+    df['Salário'] = pd.to_numeric(df['Salário'], errors='coerce')  # Garantir que 'Salário' seja numérico
+    df['Sal. Corrigido'] = pd.to_numeric(df['Sal. Corrigido'], errors='coerce')  # Garantir que 'Sal. Corrigido' seja numérico
     
     return df
 
@@ -93,9 +91,6 @@ if uploaded_cnis_txt and uploaded_carta_txt:
     # Processando CNIS
     texto_cnis = ler_texto(uploaded_cnis_txt)
     df_cnis = estrutura_cnis(texto_cnis)
-    if df_cnis is None:
-        st.error("Erro ao processar CNIS!")
-        st.stop()
 
     # Processando Carta Benefício
     texto_carta = ler_texto(uploaded_carta_txt)
