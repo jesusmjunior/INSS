@@ -59,12 +59,13 @@ def formatar_moeda(valor):
 # ================================
 # UPLOAD
 # ================================
+aba = st.sidebar.radio("Navegação",["Extrator"])
 st.sidebar.header("🔽 Upload dos Arquivos")
 cnis_file = st.sidebar.file_uploader("Upload - CNIS", type=["csv"])
 carta_file = st.sidebar.file_uploader("Upload - Carta", type=["csv"])
 desconsid_file = st.sidebar.file_uploader("Upload - Desconsiderados", type=["csv"])
 
-aba = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório", "Atualização Monetária", "Extrator"])
+aba = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório", "Atualização Monetária"])
 
 # ================================
 # PROCESSAMENTO PRINCIPAL
