@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import re
 from io import StringIO
 
@@ -17,6 +18,16 @@ def ler_texto(uploaded_file):
     texto = stringio.read()
     return texto
 
+# Função para aplicar a lógica fuzzy para sanitização
+def fuzzy_sanitization(value):
+    try:
+        # Tentar converter o valor para numérico
+        sanitized_value = pd.to_numeric(value, errors='coerce')
+        if pd.isna(sanitized_value):
+            return 0  # Substituir valores não numéricos por 0
+        return sanitized_value
+    except Exception:
+        return 0  # Se falhar, retorna 0 como valor padrão
 
 def estrutura_cnis(texto):
     linhas = texto.split('\n')
@@ -29,13 +40,10 @@ def estrutura_cnis(texto):
             data.append({'Competência': competencia, 'Remuneração': remuneracao, 'Observação': 'Dados CNIS'})
     df = pd.DataFrame(data)
     
-    # Limpeza de dados (preenchendo valores nulos com valores padrão)
-    df = df.fillna("")
+    # Sanitizando dados
+    df['Remuneração'] = df['Remuneração'].apply(fuzzy_sanitization)
     
-    # Garantir que os tipos de dados sejam compatíveis
-    df['Remuneração'] = pd.to_numeric(df['Remuneração'], errors='coerce')  # Garantir que 'Remuneração' seja numérico
     return df
-
 
 def estrutura_carta(texto):
     linhas = texto.split('\n')
@@ -59,15 +67,11 @@ def estrutura_carta(texto):
             })
     df = pd.DataFrame(data)
     
-    # Limpeza de dados (preenchendo valores nulos com valores padrão)
-    df = df.fillna("")
-    
-    # Garantir que os tipos de dados sejam compatíveis
-    df['Salário'] = pd.to_numeric(df['Salário'], errors='coerce')  # Garantir que 'Salário' seja numérico
-    df['Sal. Corrigido'] = pd.to_numeric(df['Sal. Corrigido'], errors='coerce')  # Garantir que 'Sal. Corrigido' seja numérico
+    # Sanitizando dados
+    df['Salário'] = df['Salário'].apply(fuzzy_sanitization)
+    df['Sal. Corrigido'] = df['Sal. Corrigido'].apply(fuzzy_sanitization)
     
     return df
-
 
 def exportar_csv(df, nome_base):
     df.to_csv(f"{nome_base}.csv", index=False)
