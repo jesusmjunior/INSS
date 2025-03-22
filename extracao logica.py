@@ -56,7 +56,7 @@ def estrutura_cnis(texto):
         if match:
             competencia = match.group(1)
             remuneracao = match.group(2).replace('.', '').replace(',', '.')
-            data.append({'Competência': competencia, 'Remuneração': remuneracao, 'Origem': 'CNIS'})
+            data.append({'Competência': competencia, 'Remuneração': remuneracao, 'Observação': 'Dados CNIS'})
     return pd.DataFrame(data)
 
 
@@ -78,8 +78,7 @@ def estrutura_carta(texto):
                 'Salário': salario,
                 'Índice': indice,
                 'Sal. Corrigido': sal_corrigido,
-                'Observação': observacao,
-                'Origem': 'Carta Benefício'
+                'Observação': observacao
             })
     return pd.DataFrame(data)
 
@@ -111,9 +110,17 @@ if uploaded_cnis_txt and uploaded_carta_txt:
     texto_carta = ler_texto(uploaded_carta_txt)
     df_carta = estrutura_carta(texto_carta)
 
-    # Exportando CNIS e Carta para CSV
+    # Exibindo as tabelas separadas
+    st.subheader("📊 Tabela CNIS")
+    st.dataframe(df_cnis, use_container_width=True)
+
+    st.subheader("📊 Tabela Carta Benefício")
+    st.dataframe(df_carta, use_container_width=True)
+
+    # Botões de download para cada tabela separada
     file_cnis = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
     file_carta = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
+
     st.download_button("⬇️ Baixar CNIS CSV", data=open(file_cnis, 'rb'), file_name=file_cnis, mime='text/csv')
     st.download_button("⬇️ Baixar Carta CSV", data=open(file_carta, 'rb'), file_name=file_carta, mime='text/csv')
 
