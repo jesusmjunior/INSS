@@ -10,21 +10,6 @@ st.set_page_config(page_title="Jesus e INSS | Sistema Completo", layout="wide")
 st.title("📄 JESUS e INSS - Extrator CNIS & Carta Benefício")
 st.write("**Recepção de arquivos TXT bagunçados ➔ Organização ➔ Visualização das tabelas completas ➔ Exportação CSV.**")
 
-# ===================== LOGIN SIMPLES =====================
-
-def login():
-    st.title("🔐 Área Protegida - Login Obrigatório")
-    user = st.text_input("Usuário (Email)")
-    password = st.text_input("Senha", type="password")
-
-    if user == "jesusmjunior2021@gmail.com" and password == "jr010507":
-        st.success("Login efetuado com sucesso ✅")
-        return True
-    else:
-        if user and password:
-            st.error("Usuário ou senha incorretos ❌")
-        st.stop()  # Para bloquear o acesso caso não logado
-
 # ===================== FUNÇÕES DE LEITURA E ESTRUTURAÇÃO =====================
 
 def ler_texto(uploaded_file):
@@ -102,56 +87,55 @@ with col2:
 
 # ===================== PROCESSAMENTO DOS DADOS =====================
 
-if login():  # Executa o login antes de processar os dados
-    if uploaded_cnis_txt and uploaded_carta_txt:
-        # Processando CNIS
-        texto_cnis = ler_texto(uploaded_cnis_txt)
-        df_cnis = estrutura_cnis(texto_cnis)
+if uploaded_cnis_txt and uploaded_carta_txt:
+    # Processando CNIS
+    texto_cnis = ler_texto(uploaded_cnis_txt)
+    df_cnis = estrutura_cnis(texto_cnis)
 
-        # Processando Carta Benefício
-        texto_carta = ler_texto(uploaded_carta_txt)
-        df_carta = estrutura_carta(texto_carta)
+    # Processando Carta Benefício
+    texto_carta = ler_texto(uploaded_carta_txt)
+    df_carta = estrutura_carta(texto_carta)
 
-        # Exibindo as tabelas separadas
-        st.subheader("📊 Tabela CNIS")
-        st.dataframe(df_cnis, use_container_width=True)
+    # Exibindo as tabelas separadas
+    st.subheader("📊 Tabela CNIS")
+    st.dataframe(df_cnis, use_container_width=True)
 
-        st.subheader("📊 Tabela Carta Benefício")
-        st.dataframe(df_carta, use_container_width=True)
+    st.subheader("📊 Tabela Carta Benefício")
+    st.dataframe(df_carta, use_container_width=True)
 
-        # Botões de download para cada tabela separada
-        file_cnis = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
-        file_carta = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
+    # Botões de download para cada tabela separada
+    file_cnis = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
+    file_carta = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
 
-        st.download_button("⬇️ Baixar CNIS CSV", data=open(file_cnis, 'rb'), file_name=file_cnis, mime='text/csv')
-        st.download_button("⬇️ Baixar Carta CSV", data=open(file_carta, 'rb'), file_name=file_carta, mime='text/csv')
+    st.download_button("⬇️ Baixar CNIS CSV", data=open(file_cnis, 'rb'), file_name=file_cnis, mime='text/csv')
+    st.download_button("⬇️ Baixar Carta CSV", data=open(file_carta, 'rb'), file_name=file_carta, mime='text/csv')
 
-        # ===================== SALÁRIOS DESCONSIDERADOS =====================
+    # ===================== SALÁRIOS DESCONSIDERADOS =====================
 
-        # Filtrando os salários desconsiderados com base na Observação "DESCONSIDERADO"
-        df_desconsiderados_carta = df_carta[df_carta['Observação'] == 'DESCONSIDERADO']
+    # Filtrando os salários desconsiderados com base na Observação "DESCONSIDERADO"
+    df_desconsiderados_carta = df_carta[df_carta['Observação'] == 'DESCONSIDERADO']
 
-        # Criando a coluna "Ano" a partir da coluna "Data", caso não exista
-        if 'Ano' not in df_desconsiderados_carta.columns:
-            df_desconsiderados_carta['Ano'] = df_desconsiderados_carta['Data'].apply(lambda x: x.split('/')[1] if isinstance(x, str) else '')
+    # Criando a coluna "Ano" a partir da coluna "Data", caso não exista
+    if 'Ano' not in df_desconsiderados_carta.columns:
+        df_desconsiderados_carta['Ano'] = df_desconsiderados_carta['Data'].apply(lambda x: x.split('/')[1] if isinstance(x, str) else '')
 
-        # Criando ou ajustando a coluna "Salário Corrigido"
-        if 'Salário Corrigido' not in df_desconsiderados_carta.columns:
-            df_desconsiderados_carta['Salário Corrigido'] = df_desconsiderados_carta['Sal. Corrigido']
+    # Criando ou ajustando a coluna "Salário Corrigido"
+    if 'Salário Corrigido' not in df_desconsiderados_carta.columns:
+        df_desconsiderados_carta['Salário Corrigido'] = df_desconsiderados_carta['Sal. Corrigido']
 
-        # Preenchendo valores vazios ou nulos nas colunas com valores padrão (se necessário)
-        df_desconsiderados_carta = df_desconsiderados_carta.fillna("")
+    # Preenchendo valores vazios ou nulos nas colunas com valores padrão (se necessário)
+    df_desconsiderados_carta = df_desconsiderados_carta.fillna("")
 
-        # Reestruturando a tabela para o formato solicitado
-        df_desconsiderados_carta = df_desconsiderados_carta[['Seq.', 'Data', 'Salário', 'Índice', 'Salário Corrigido', 'Observação', 'Ano', 'Salário Corrigido']]
+    # Reestruturando a tabela para o formato solicitado
+    df_desconsiderados_carta = df_desconsiderados_carta[['Seq.', 'Data', 'Salário', 'Índice', 'Salário Corrigido', 'Observação', 'Ano', 'Salário Corrigido']]
 
-        # Exportando os salários desconsiderados da Carta para CSV
-        file_output_desconsiderados_carta = exportar_csv(df_desconsiderados_carta, "Salarios_Desconsiderados_Carta_Formatted")
+    # Exportando os salários desconsiderados da Carta para CSV
+    file_output_desconsiderados_carta = exportar_csv(df_desconsiderados_carta, "Salarios_Desconsiderados_Carta_Formatted")
 
-        # Exibindo os salários desconsiderados da Carta Benefício
-        st.subheader("📊 Salários Desconsiderados Carta Benefício")
-        st.dataframe(df_desconsiderados_carta, use_container_width=True)
-        st.download_button("⬇️ Baixar Salários Desconsiderados Carta CSV", data=open(file_output_desconsiderados_carta, 'rb'), file_name=file_output_desconsiderados_carta, mime='text/csv')
+    # Exibindo os salários desconsiderados da Carta Benefício
+    st.subheader("📊 Salários Desconsiderados Carta Benefício")
+    st.dataframe(df_desconsiderados_carta, use_container_width=True)
+    st.download_button("⬇️ Baixar Salários Desconsiderados Carta CSV", data=open(file_output_desconsiderados_carta, 'rb'), file_name=file_output_desconsiderados_carta, mime='text/csv')
 
-    else:
-        st.info("🔔 Faça upload dos arquivos CNIS e Carta Benefício para iniciar o processamento.")
+else:
+    st.info("🔔 Faça upload dos arquivos CNIS e Carta Benefício para iniciar o processamento.")
