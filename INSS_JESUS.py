@@ -30,8 +30,8 @@ def organizar_cnis(file):
     df_split = df.iloc[:, 0].str.split(',', expand=True)
     
     # Verificar o número de colunas após divisão
-    if df_split.shape[1] != 4:
-        st.error(f"Erro: Esperado 4 colunas após a divisão, mas o arquivo tem {df_split.shape[1]} colunas.")
+    if df_split.shape[1] != 6:
+        st.error(f"Erro: Esperado 6 colunas após a divisão, mas o arquivo tem {df_split.shape[1]} colunas.")
         st.stop()  # Interrompe a execução se o número de colunas estiver incorreto
     
     # Definir os nomes das colunas
@@ -47,7 +47,7 @@ def organizar_desconsiderados(file):
     
     # Verificar o número de colunas após divisão
     if df_split.shape[1] != 9:
-        st.error(f"Erro: Esperado 6 colunas após a divisão, mas o arquivo tem {df_split.shape[1]} colunas.")
+        st.error(f"Erro: Esperado 9 colunas após a divisão, mas o arquivo tem {df_split.shape[1]} colunas.")
         st.stop()  # Interrompe a execução se o número de colunas estiver incorreto
     
     # Definir os nomes das colunas
