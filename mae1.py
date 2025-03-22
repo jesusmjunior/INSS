@@ -2,77 +2,85 @@ import streamlit as st
 import requests
 from urllib.parse import urljoin
 
-# CONFIGURAÇÃO
-BASE_URL = 'https://ava.domalberto.edu.br'
-DOC_PAGE = f'{BASE_URL}/solicitacao-de-documentos/'
+st.set_page_config(page_title="Busca Automática de Arquivo", layout="centered")
 
-UPLOADS_PATHS = [
-    '/wp-content/uploads/',
-    '/uploads/certificados/',
-    '/certificados/',
-]
+st.title("🔍 Busca Automática de Arquivos Públicos em Sites")
 
-TARGET_FILE_NAME = 'Ficha de Registro de Certificado - DOM (atualizada) - ROSEMARY SANTOS RODRIGUES OLIVEIRA - ANDRAGOGIA E FORMAÇÃO DE ADULTOS - 750 HORAS.pdf'
+st.write("Preencha os campos abaixo para iniciar a busca:")
 
-# Função para tentar download direto via URLs previsíveis
-def try_direct_download():
-    st.write("Tentando download direto via URLs conhecidas...\n")
-    for path in UPLOADS_PATHS:
-        test_url = urljoin(BASE_URL, f"{path}{TARGET_FILE_NAME.replace(' ', '%20')}")
-        st.write(f"🔗 Testando: {test_url}")
-        resp = requests.get(test_url)
-        if resp.status_code == 200 and b'%PDF' in resp.content[:1024]:
-            with open('certificado_rosemary.pdf', 'wb') as f:
-                f.write(resp.content)
-            st.success(f"✅ Certificado encontrado e baixado: {test_url}")
-            with open('certificado_rosemary.pdf', "rb") as file:
-                st.download_button(label="📥 Baixar Certificado", data=file, file_name='certificado_rosemary.pdf')
-            return True
-    st.error("❌ Nenhuma URL direta localizou o arquivo.\n")
-    return False
+# Entrada do site e nome do arquivo
+base_url = st.text_input("Digite o URL base do site (ex: https://ava.domalberto.edu.br)", value="https://ava.domalberto.edu.br")
+target_file_name = st.text_input("Digite o nome EXATO ou parte do arquivo (ex: certificado.pdf)", value="Ficha de Registro de Certificado")
 
-# Função para verificar diretórios públicos
-def try_open_directories():
-    st.write("Verificando se diretórios públicos estão acessíveis...\n")
-    for path in UPLOADS_PATHS:
-        dir_url = urljoin(BASE_URL, path)
-        st.write(f"🔍 Checando: {dir_url}")
-        resp = requests.get(dir_url)
-        if "Index of" in resp.text or '<title>Index' in resp.text:
-            st.success(f"⚠️ Diretório possivelmente aberto: {dir_url}")
-            return True
-    st.error("❌ Nenhum diretório aberto encontrado.\n")
-    return False
+# Opções padrões de diretórios
+default_paths = ['/wp-content/uploads/', '/uploads/certificados/', '/certificados/']
+ajax_actions = ['listar_certificados', 'get_certificados', 'baixar_pdf', 'certificados']
 
-# Função para testar endpoints AJAX expostos
-def try_admin_ajax():
-    st.write("Testando possíveis endpoints AJAX...\n")
-    ajax_url = urljoin(BASE_URL, '/wp-admin/admin-ajax.php')
-    actions = ['listar_certificados', 'get_certificados', 'baixar_pdf', 'certificados']
-    for action in actions:
-        payload = {'action': action}
-        st.write(f"🛠️ Testando action: {action}")
-        resp = requests.post(ajax_url, data=payload)
-        if resp.status_code == 200 and 'pdf' in resp.text.lower():
-            st.success(f"⚠️ Endpoint público respondeu:\n\n{resp.text[:400]}...")
-            return True
-    st.error("❌ Nenhum endpoint AJAX exposto sem login.\n")
-    return False
+# Botão para iniciar busca
+if st.button("🚀 Iniciar Busca"):
 
-# APP Streamlit
-st.title("🔎 Busca Automática de Certificado - DOM Alberto")
+    st.info("Iniciando buscas...\n")
 
-st.write("Este app tenta localizar e baixar seu certificado sem necessidade de login, testando caminhos públicos possíveis.")
+    # Função tentativa download direto
+    def try_direct_download():
+        st.write("Tentando download direto via URLs conhecidas...\n")
+        for path in default_paths:
+            test_url = urljoin(base_url, f"{path}{target_file_name.replace(' ', '%20')}")
+            st.write(f"🔗 Testando: {test_url}")
+            try:
+                resp = requests.get(test_url, timeout=10)
+                if resp.status_code == 200 and b'%PDF' in resp.content[:1024]:
+                    with open('arquivo_encontrado.pdf', 'wb') as f:
+                        f.write(resp.content)
+                    st.success(f"✅ Arquivo encontrado e baixado: {test_url}")
+                    with open('arquivo_encontrado.pdf', "rb") as file:
+                        st.download_button(label="📥 Baixar Arquivo", data=file, file_name='arquivo_encontrado.pdf')
+                    return True
+            except Exception as e:
+                st.warning(f"Erro ao acessar {test_url}: {e}")
+        st.error("❌ Nenhuma URL direta localizou o arquivo.\n")
+        return False
 
-if st.button("🔍 Buscar Certificado"):
-    st.write("Iniciando buscas...\n")
+    # Função testar diretórios
+    def try_open_directories():
+        st.write("Verificando se diretórios públicos estão acessíveis...\n")
+        for path in default_paths:
+            dir_url = urljoin(base_url, path)
+            st.write(f"🔍 Checando: {dir_url}")
+            try:
+                resp = requests.get(dir_url, timeout=10)
+                if "Index of" in resp.text or '<title>Index' in resp.text:
+                    st.success(f"⚠️ Diretório possivelmente aberto: {dir_url}")
+                    return True
+            except Exception as e:
+                st.warning(f"Erro ao acessar {dir_url}: {e}")
+        st.error("❌ Nenhum diretório aberto encontrado.\n")
+        return False
 
+    # Função testar AJAX
+    def try_admin_ajax():
+        st.write("Testando possíveis endpoints AJAX...\n")
+        ajax_url = urljoin(base_url, '/wp-admin/admin-ajax.php')
+        for action in ajax_actions:
+            payload = {'action': action}
+            st.write(f"🛠️ Testando action: {action}")
+            try:
+                resp = requests.post(ajax_url, data=payload, timeout=10)
+                if resp.status_code == 200 and 'pdf' in resp.text.lower():
+                    st.success(f"⚠️ Endpoint público respondeu:\n\n{resp.text[:400]}...")
+                    return True
+            except Exception as e:
+                st.warning(f"Erro no POST action {action}: {e}")
+        st.error("❌ Nenhum endpoint AJAX exposto sem login.\n")
+        return False
+
+    # EXECUÇÃO DAS FUNÇÕES
     result1 = try_direct_download()
     result2 = try_open_directories()
     result3 = try_admin_ajax()
 
     if not (result1 or result2 or result3):
-        st.error("Nenhum método funcionou. O certificado pode estar protegido por login.")
+        st.error("Nenhum método funcionou. O arquivo pode estar protegido ou em local não acessível publicamente.")
     else:
-        st.success("✅ Alguma tentativa retornou resultado!")
+        st.success("✅ Alguma tentativa obteve sucesso!")
 
