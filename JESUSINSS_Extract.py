@@ -1,102 +1,132 @@
 import streamlit as st
 import pandas as pd
-import pdfplumber
-import tabula
-import os
+import re
+from io import StringIO
 
-st.set_page_config(page_title="Jesus e INSS | Extrator CNIS + Carta Benefício", layout="centered")
+# ===================== CONFIG PÁGINA =====================
+st.set_page_config(page_title="Jesus e INSS | Extrator CNIS + Carta Benefício", layout="wide")
 
-st.title("📄 JESUS E INSS - Extrator CNIS & Carta Benefício")
-st.write("**Processamento automatizado baseado em lógica fuzzy, com exportação em CSV/XLSX**")
+st.title("📄 JESUS e INSS - Extrator CNIS & Carta Benefício")
+st.write("**Recepção de arquivos TXT bagunçados ➔ Organização ➔ Visualização das tabelas completas ➔ Exportação CSV.**")
 
-# --------------- CONFIGURAÇÕES INICIAIS --------------------
-uploaded_file = st.file_uploader("🔽 Faça o upload do arquivo PDF (CNIS ou Carta Benefício):", type="pdf")
-output_format = st.radio("📁 Formato de Exportação:", ['CSV', 'XLSX'])
+# ===================== RECEPÇÃO DOS TXT =====================
+col1, col2 = st.columns(2)
 
-# ------------------ FUNÇÕES BASE --------------------------
+with col1:
+    uploaded_cnis_txt = st.file_uploader("🔽 Upload do arquivo CNIS (TXT):", type="txt", key="cnis_txt")
 
-def verificar_existencia(path):
-    return os.path.exists(path)
+with col2:
+    uploaded_carta_txt = st.file_uploader("🔽 Upload do arquivo Carta Benefício (TXT):", type="txt", key="carta_txt")
 
-def extrair_tabula(pdf_path):
-    try:
-        dfs = tabula.read_pdf(pdf_path, pages='all', multiple_tables=True, lattice=True)
-        return dfs
-    except Exception:
-        return None
+# ===================== FUNÇÕES BASE =====================
 
-def extrair_plumber(pdf_path):
-    linhas = []
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            lines = page.extract_text().split('\n')
-            linhas.extend(lines)
-    return linhas
+def ler_texto(uploaded_file):
+    stringio = StringIO(uploaded_file.getvalue().decode("utf-8", errors='ignore'))
+    texto = stringio.read()
+    return texto
 
-def estrutura_cnis(linhas):
+
+def estrutura_cnis(texto):
+    linhas = texto.split('\n')
     data = []
     for line in linhas:
-        if '/' in line and any(char.isdigit() for char in line):
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                data.append({'Competência': parts[0], 'Remuneração': parts[1]})
+        match = re.search(r"(\d{2}/\d{4})\s+([0-9.]+,[0-9]{2})", line)
+        if match:
+            competencia = match.group(1)
+            remuneracao = match.group(2).replace('.', '').replace(',', '.')
+            data.append({'Competência': competencia, 'Remuneração': remuneracao})
     return pd.DataFrame(data)
 
-def estrutura_carta(dfs):
-    if dfs:
-        for df in dfs:
-            if len(df.columns) >= 5:
-                df.columns = ['Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação'][:len(df.columns)]
-                return df
-    return None
 
-def exportar_df(df, nome_base, formato):
-    if formato == 'CSV':
-        df.to_csv(f"{nome_base}.csv", index=False)
-        return f"{nome_base}.csv"
+def estrutura_carta(texto):
+    linhas = texto.split('\n')
+    data = []
+    for line in linhas:
+        match = re.match(r"^(\d{3})\s+(\d{2}/\d{4})\s+([0-9.,]+)\s+([0-9.,]+)\s+([0-9.,]+)(\s+.*)?", line)
+        if match:
+            seq = match.group(1)
+            data_col = match.group(2)
+            salario = match.group(3).replace('.', '').replace(',', '.')
+            indice = match.group(4).replace(',', '.')
+            sal_corrigido = match.group(5).replace('.', '').replace(',', '.')
+            observacao = match.group(6).strip() if match.group(6) else ""
+            data.append({
+                'Seq.': seq,
+                'Data': data_col,
+                'Salário': salario,
+                'Índice': indice,
+                'Sal. Corrigido': sal_corrigido,
+                'Observação': observacao,
+                'Duplicado': 'N'  # Inicializa a coluna Duplicado como 'N'
+            })
+    return pd.DataFrame(data)
+
+
+def exportar_csv(df, nome_base):
+    df.to_csv(f"{nome_base}.csv", index=False)
+    return f"{nome_base}.csv"
+
+
+# Função para organizar salários desconsiderados
+def organizar_desconsiderados(df_carta):
+    # Filtra as linhas onde a coluna 'Duplicado' é 'S'
+    df_desconsiderados = df_carta[df_carta['Duplicado'] == 'S']
+    
+    # Converte a coluna 'Sal. Corrigido' para tipo numérico
+    df_desconsiderados['Sal. Corrigido'] = pd.to_numeric(df_desconsiderados['Sal. Corrigido'], errors='coerce')
+    
+    # Remove linhas com Salário Corrigido inválido (NaN)
+    df_desconsiderados = df_desconsiderados.dropna(subset=['Sal. Corrigido'])
+    
+    # Excluir as colunas que não são necessárias na exportação final
+    df_desconsiderados = df_desconsiderados[['Seq.', 'Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Duplicado']]
+    
+    return df_desconsiderados
+
+# ===================== LAYOUT COM TABELAS =====================
+
+st.subheader("📊 Tabelas Organizacionais")
+
+col3, col4 = st.columns(2)
+
+with col3:
+    st.markdown("### 📄 Extrato CNIS")
+    if uploaded_cnis_txt is not None:
+        texto_txt = ler_texto(uploaded_cnis_txt)
+        df_cnis = estrutura_cnis(texto_txt)
+        if not df_cnis.empty:
+            st.dataframe(df_cnis, use_container_width=True)
+            file_output = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
+            st.download_button("⬇️ Baixar CNIS CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
+        else:
+            st.warning("⚠️ Nenhum dado CNIS identificado.")
     else:
-        df.to_excel(f"{nome_base}.xlsx", index=False)
-        return f"{nome_base}.xlsx"
+        st.info("Faça upload do TXT CNIS para visualizar.")
 
-# ------------------ EXECUÇÃO PRINCIPAL --------------------
-
-if uploaded_file is not None:
-    with st.spinner('🔍 Verificando e processando o PDF...'):
-        temp_pdf_path = f"temp_{uploaded_file.name}"
-        with open(temp_pdf_path, "wb") as f:
-            f.write(uploaded_file.read())
-        
-        # Lógica fuzzy para escolha do método
-        tabula_dfs = extrair_tabula(temp_pdf_path)
-        if tabula_dfs and any(not df.empty for df in tabula_dfs):
-            st.success("📑 Documento identificado como **Carta de Benefício** (Tabula detectou tabelas)")
-            df_final = estrutura_carta(tabula_dfs)
-            nome_output = "Carta_Beneficio_Extraida"
+with col4:
+    st.markdown("### 📄 Carta Benefício")
+    if uploaded_carta_txt is not None:
+        texto_txt = ler_texto(uploaded_carta_txt)
+        df_carta = estrutura_carta(texto_txt)
+        if not df_carta.empty:
+            st.dataframe(df_carta, use_container_width=True)
+            file_output = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
+            st.download_button("⬇️ Baixar Carta CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
+            # Organiza e exporta os salários desconsiderados
+            df_desconsiderados = organizar_desconsiderados(df_carta)
+            if not df_desconsiderados.empty:
+                st.subheader("📊 Salários Desconsiderados")
+                st.dataframe(df_desconsiderados, use_container_width=True)
+                file_output_desconsiderados = exportar_csv(df_desconsiderados, "Salarios_Desconsiderados")
+                st.download_button("⬇️ Baixar Salários Desconsiderados CSV", data=open(file_output_desconsiderados, 'rb'), file_name=file_output_desconsiderados, mime='text/csv')
+            else:
+                st.warning("⚠️ Nenhum salário desconsiderado identificado.")
         else:
-            st.warning("📝 Documento identificado como **Extrato CNIS** (Nenhuma tabela detectada)")
-            linhas = extrair_plumber(temp_pdf_path)
-            df_final = estrutura_cnis(linhas)
-            nome_output = "Extrato_CNIS_Extraido"
+            st.warning("⚠️ Nenhum dado da Carta identificado.")
+    else:
+        st.info("Faça upload do TXT da Carta para visualizar.")
 
-        if df_final is not None and not df_final.empty:
-            st.subheader("📊 Dados Extraídos:")
-            st.dataframe(df_final)
+# ===================== FEEDBACK =====================
 
-            file_output = exportar_df(df_final, nome_output, output_format)
-            st.success(f"✅ Exportação concluída! Arquivo gerado: {file_output}")
-            with open(file_output, 'rb') as f:
-                st.download_button("⬇️ Baixar Arquivo", data=f, file_name=file_output, mime='application/octet-stream')
-            
-            # Perguntas adicionais:
-            st.divider()
-            st.info("Deseja integrar com Google Sheets ou API? 🚀 (Futuro recurso)")
-            st.info("Deseja validar dados fuzzy ou processar um novo documento?")
-
-        else:
-            st.error("❌ Não foi possível estruturar os dados.")
-
-        os.remove(temp_pdf_path)
-
-else:
-    st.info("👆 Faça o upload de um arquivo PDF para iniciar o processamento.")
-
+if uploaded_cnis_txt is None and uploaded_carta_txt is None:
+    st.info("👆 Faça upload dos arquivos CNIS e Carta Benefício em TXT para iniciar.")
