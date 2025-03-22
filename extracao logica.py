@@ -27,7 +27,19 @@ def estrutura_cnis(texto):
             competencia = match.group(1)
             remuneracao = match.group(2).replace('.', '').replace(',', '.')
             data.append({'Competência': competencia, 'Remuneração': remuneracao, 'Observação': 'Dados CNIS'})
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    
+    # Verificando a estrutura do DataFrame antes de renomear
+    st.write("Estrutura do DataFrame CNIS antes de renomear:")
+    st.write(df.head())
+
+    # Verificando se o número de colunas está correto
+    if len(df.columns) != 3:
+        st.error(f"O número de colunas é {len(df.columns)}, mas esperamos 3 colunas. Ajuste o arquivo!")
+        return None
+
+    df.columns = ['Competência', 'Remuneração', 'Observação']
+    return df
 
 
 def estrutura_carta(texto):
@@ -50,7 +62,13 @@ def estrutura_carta(texto):
                 'Sal. Corrigido': sal_corrigido,
                 'Observação': observacao
             })
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    
+    # Verificando a estrutura do DataFrame antes de renomear
+    st.write("Estrutura do DataFrame Carta Benefício antes de renomear:")
+    st.write(df.head())
+    
+    return df
 
 
 def exportar_csv(df, nome_base):
@@ -75,6 +93,9 @@ if uploaded_cnis_txt and uploaded_carta_txt:
     # Processando CNIS
     texto_cnis = ler_texto(uploaded_cnis_txt)
     df_cnis = estrutura_cnis(texto_cnis)
+    if df_cnis is None:
+        st.error("Erro ao processar CNIS!")
+        st.stop()
 
     # Processando Carta Benefício
     texto_carta = ler_texto(uploaded_carta_txt)
