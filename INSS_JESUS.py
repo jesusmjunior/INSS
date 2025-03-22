@@ -95,7 +95,7 @@ if cnis_file and carta_file and desconsid_file:
     df_vantajosos['Sal. Corrigido'] = df_vantajosos['Sal. Corrigido'].apply(formatar_moeda)
 
     # ================================
-    # EXTRATOR (Nova Aba)
+    # EXTRATOR 
     # ================================
     if aba == "Extrator":
         st.title("📄 Extrator CNIS & Carta Benefício")
