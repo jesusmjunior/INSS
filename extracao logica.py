@@ -126,36 +126,19 @@ if uploaded_cnis_txt and uploaded_carta_txt:
 
     # ===================== SALÁRIOS DESCONSIDERADOS =====================
 
-    # CNIS - Filtrando os salários desconsiderados
-    df_desconsiderados_cnis = df_cnis[df_cnis['Remuneração'].astype(float) < 1000]  # Exemplo de filtro
-    df_desconsiderados_carta = df_carta[df_carta['Salário'].astype(float) < 1000]  # Exemplo de filtro
+    # Filtrando os salários desconsiderados com base na Observação "DESCONSIDERADO"
+    df_desconsiderados_carta = df_carta[df_carta['Observação'] == 'DESCONSIDERADO']
 
-    # Agrupando os dados de salários desconsiderados
-    file_output_desconsiderados_cnis = exportar_csv(df_desconsiderados_cnis, "Salarios_Desconsiderados_Cnis")
-    file_output_desconsiderados_carta = exportar_csv(df_desconsiderados_carta, "Salarios_Desconsiderados_Carta")
+    # Reestruturando a tabela para o formato solicitado
+    df_desconsiderados_carta = df_desconsiderados_carta[['Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Salário Corrigido']]
 
-    # Exibindo os salários desconsiderados
-    st.subheader("📊 Salários Desconsiderados (CNIS)")
-    st.dataframe(df_desconsiderados_cnis, use_container_width=True)
-    st.download_button("⬇️ Baixar Salários Desconsiderados CNIS CSV", data=open(file_output_desconsiderados_cnis, 'rb'), file_name=file_output_desconsiderados_cnis, mime='text/csv')
+    # Exportando os salários desconsiderados da Carta para CSV
+    file_output_desconsiderados_carta = exportar_csv(df_desconsiderados_carta, "Salarios_Desconsiderados_Carta_Formatted")
 
-    st.subheader("📊 Salários Desconsiderados (Carta)")
+    # Exibindo os salários desconsiderados da Carta Benefício
+    st.subheader("📊 Salários Desconsiderados Carta Benefício")
     st.dataframe(df_desconsiderados_carta, use_container_width=True)
     st.download_button("⬇️ Baixar Salários Desconsiderados Carta CSV", data=open(file_output_desconsiderados_carta, 'rb'), file_name=file_output_desconsiderados_carta, mime='text/csv')
-
-    # ===================== CAIXA DE DADOS ALIENÍGENAS =====================
-
-    alienigenas_input = st.text_area("Inserir dados alienígenas para cálculo (formato livre):")
-    if st.button("Formatar Dados Alienígenas"):
-        # Processamento para formatar os dados alienígenas (exemplo simples)
-        alienigenas_formatted = alienigenas_input.replace(",", ".").replace("\n", ",").split(',')
-        df_alienigenas = pd.DataFrame({'Dados Alienígenas': alienigenas_formatted})
-        st.write("### Dados Alienígenas Formatados:")
-        st.dataframe(df_alienigenas)
-
-        # Gerar CSV para download
-        file_output_alienigenas = exportar_csv(df_alienigenas, "Alienigenas_Formatados")
-        st.download_button("⬇️ Baixar Alienígenas CSV", data=open(file_output_alienigenas, 'rb'), file_name=file_output_alienigenas, mime='text/csv')
 
 else:
     st.info("🔔 Faça upload dos arquivos CNIS e Carta Benefício para iniciar o processamento.")
