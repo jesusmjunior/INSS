@@ -6,20 +6,37 @@ from io import StringIO
 # ===================== CONFIG PÁGINA =====================
 st.set_page_config(page_title="Jesus e INSS | Extrator CNIS + Carta Benefício", layout="wide")
 
-st.title("📄 JESUS e INSS - Extrator CNIS & Carta Benefício")
-st.write("**Recepção de arquivos TXT bagunçados ➔ Organização ➔ Visualização das tabelas completas ➔ Exportação CSV.**")
+# ===================== LOGIN =====================
+# Predefinido login e senha (você pode adicionar mais usuários facilmente depois)
+usuarios = {
+    'admin': 'admin123',  # Login e senha predefinidos
+}
 
-# ===================== RECEPÇÃO DOS TXT =====================
-col1, col2 = st.columns(2)
+# Função de login
+def autenticar():
+    if "auth" not in st.session_state:
+        st.session_state.auth = False
 
-with col1:
-    uploaded_cnis_txt = st.file_uploader("🔽 Upload do arquivo CNIS (TXT):", type="txt", key="cnis_txt")
+    if st.session_state.auth:
+        return True
 
-with col2:
-    uploaded_carta_txt = st.file_uploader("🔽 Upload do arquivo Carta Benefício (TXT):", type="txt", key="carta_txt")
+    with st.form("login_form", clear_on_submit=True):
+        st.write("👤 Faça login para acessar os dados")
+        username = st.text_input("Usuário")
+        password = st.text_input("Senha", type="password")
+        submitted = st.form_submit_button("Entrar")
+
+        if submitted:
+            if username in usuarios and usuarios[username] == password:
+                st.session_state.auth = True
+                st.success(f"Bem-vindo, {username}!")
+                return True
+            else:
+                st.error("Usuário ou senha incorretos.")
+                return False
+    return False
 
 # ===================== FUNÇÕES BASE =====================
-
 def ler_texto(uploaded_file):
     stringio = StringIO(uploaded_file.getvalue().decode("utf-8", errors='ignore'))
     texto = stringio.read()
@@ -56,8 +73,7 @@ def estrutura_carta(texto):
                 'Salário': salario,
                 'Índice': indice,
                 'Sal. Corrigido': sal_corrigido,
-                'Observação': observacao,
-                'Duplicado': 'N'  # Inicializa a coluna Duplicado como 'N'
+                'Observação': observacao
             })
     return pd.DataFrame(data)
 
@@ -66,67 +82,43 @@ def exportar_csv(df, nome_base):
     df.to_csv(f"{nome_base}.csv", index=False)
     return f"{nome_base}.csv"
 
-
-# Função para organizar salários desconsiderados
-def organizar_desconsiderados(df_carta):
-    # Filtra as linhas onde a coluna 'Duplicado' é 'S'
-    df_desconsiderados = df_carta[df_carta['Duplicado'] == 'S']
-    
-    # Converte a coluna 'Sal. Corrigido' para tipo numérico
-    df_desconsiderados['Sal. Corrigido'] = pd.to_numeric(df_desconsiderados['Sal. Corrigido'], errors='coerce')
-    
-    # Remove linhas com Salário Corrigido inválido (NaN)
-    df_desconsiderados = df_desconsiderados.dropna(subset=['Sal. Corrigido'])
-    
-    # Excluir as colunas que não são necessárias na exportação final
-    df_desconsiderados = df_desconsiderados[['Seq.', 'Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Duplicado']]
-    
-    return df_desconsiderados
-
 # ===================== LAYOUT COM TABELAS =====================
 
-st.subheader("📊 Tabelas Organizacionais")
+if autenticar():  # Verifica se o usuário foi autenticado
+    st.subheader("📊 Tabelas Organizacionais")
 
-col3, col4 = st.columns(2)
+    col3, col4 = st.columns(2)
 
-with col3:
-    st.markdown("### 📄 Extrato CNIS")
-    if uploaded_cnis_txt is not None:
-        texto_txt = ler_texto(uploaded_cnis_txt)
-        df_cnis = estrutura_cnis(texto_txt)
-        if not df_cnis.empty:
-            st.dataframe(df_cnis, use_container_width=True)
-            file_output = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
-            st.download_button("⬇️ Baixar CNIS CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
-        else:
-            st.warning("⚠️ Nenhum dado CNIS identificado.")
-    else:
-        st.info("Faça upload do TXT CNIS para visualizar.")
-
-with col4:
-    st.markdown("### 📄 Carta Benefício")
-    if uploaded_carta_txt is not None:
-        texto_txt = ler_texto(uploaded_carta_txt)
-        df_carta = estrutura_carta(texto_txt)
-        if not df_carta.empty:
-            st.dataframe(df_carta, use_container_width=True)
-            file_output = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
-            st.download_button("⬇️ Baixar Carta CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
-            # Organiza e exporta os salários desconsiderados
-            df_desconsiderados = organizar_desconsiderados(df_carta)
-            if not df_desconsiderados.empty:
-                st.subheader("📊 Salários Desconsiderados")
-                st.dataframe(df_desconsiderados, use_container_width=True)
-                file_output_desconsiderados = exportar_csv(df_desconsiderados, "Salarios_Desconsiderados")
-                st.download_button("⬇️ Baixar Salários Desconsiderados CSV", data=open(file_output_desconsiderados, 'rb'), file_name=file_output_desconsiderados, mime='text/csv')
+    with col3:
+        st.markdown("### 📄 Extrato CNIS")
+        if uploaded_cnis_txt is not None:
+            texto_txt = ler_texto(uploaded_cnis_txt)
+            df_cnis = estrutura_cnis(texto_txt)
+            if not df_cnis.empty:
+                st.dataframe(df_cnis, use_container_width=True)
+                file_output = exportar_csv(df_cnis, "Extrato_CNIS_Organizado")
+                st.download_button("⬇️ Baixar CNIS CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
             else:
-                st.warning("⚠️ Nenhum salário desconsiderado identificado.")
+                st.warning("⚠️ Nenhum dado CNIS identificado.")
         else:
-            st.warning("⚠️ Nenhum dado da Carta identificado.")
-    else:
-        st.info("Faça upload do TXT da Carta para visualizar.")
+            st.info("Faça upload do TXT CNIS para visualizar.")
 
-# ===================== FEEDBACK =====================
+    with col4:
+        st.markdown("### 📄 Carta Benefício")
+        if uploaded_carta_txt is not None:
+            texto_txt = ler_texto(uploaded_carta_txt)
+            df_carta = estrutura_carta(texto_txt)
+            if not df_carta.empty:
+                st.dataframe(df_carta, use_container_width=True)
+                file_output = exportar_csv(df_carta, "Carta_Beneficio_Organizada")
+                st.download_button("⬇️ Baixar Carta CSV", data=open(file_output, 'rb'), file_name=file_output, mime='text/csv')
+            else:
+                st.warning("⚠️ Nenhum dado da Carta identificado.")
+        else:
+            st.info("Faça upload do TXT da Carta para visualizar.")
 
-if uploaded_cnis_txt is None and uploaded_carta_txt is None:
-    st.info("👆 Faça upload dos arquivos CNIS e Carta Benefício em TXT para iniciar.")
+    # ===================== FEEDBACK =====================
+    if uploaded_cnis_txt is None and uploaded_carta_txt is None:
+        st.info("👆 Faça upload dos arquivos CNIS e Carta Benefício em TXT para iniciar.")
+else:
+    st.warning("⚠️ Você precisa se autenticar para acessar o conteúdo.")
