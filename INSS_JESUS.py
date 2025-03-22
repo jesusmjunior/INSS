@@ -26,12 +26,12 @@ login()
 # ================================ FUNÇÕES UTILITÁRIAS ================================
 def organizar_cnis(file):
     df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-    # Verifica se há mais de uma coluna e divide a primeira coluna em várias
+    # Dividir a primeira coluna em múltiplas colunas
     df_split = df.iloc[:, 0].str.split(',', expand=True)
     
-    # Verificar o número de colunas após divisão
-    if df_split.shape[1] != 6:
-        st.error(f"Erro: Esperado 6 colunas após a divisão, mas o arquivo tem {df_split.shape[1]} colunas.")
+    # Verificar o número de colunas
+    if df_split.shape[1] != 4:
+        st.error(f"Erro: Esperado 4 colunas após a divisão, mas o arquivo tem {df_split.shape[1]} colunas.")
         st.stop()  # Interrompe a execução se o número de colunas estiver incorreto
     
     # Definir os nomes das colunas
@@ -42,16 +42,21 @@ def organizar_cnis(file):
 
 def organizar_desconsiderados(file):
     df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-    # Verifica se há mais de uma coluna e divide a primeira coluna em várias
-    df_split = df.iloc[:, 0].str.split(',', expand=True)
     
-    # Verificar o número de colunas após divisão
-    if df_split.shape[1] != 9:
-        st.error(f"Erro: Esperado 9 colunas após a divisão, mas o arquivo tem {df_split.shape[1]} colunas.")
-        st.stop()  # Interrompe a execução se o número de colunas estiver incorreto
-    
-    # Definir os nomes das colunas
-    df_split.columns = ['Seq', 'Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Duplicado']
+    # Verificar se o arquivo tem mais de uma coluna
+    if df.shape[1] == 1:
+        # Tentar dividir pela vírgula
+        df_split = df.iloc[:, 0].str.split(',', expand=True)
+        if df_split.shape[1] == 4:  # Verifique se agora há 4 colunas
+            st.success("Arquivo processado corretamente com 4 colunas.")
+        else:
+            st.error(f"Erro: O arquivo tem {df_split.shape[1]} colunas após a divisão. Esperado 4.")
+            st.stop()
+    else:
+        df_split = df
+
+    # Definindo as colunas e tratando os dados
+    df_split.columns = ['Seq', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação']
     df_split['Sal. Corrigido'] = pd.to_numeric(df_split['Sal. Corrigido'], errors='coerce')
     return df_split
 
