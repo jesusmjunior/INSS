@@ -40,13 +40,13 @@ if login():  # Executa o login
         # Divide a primeira coluna em várias partes com base na vírgula
         df_split = df.iloc[:, 0].str.split(',', expand=True)
 
-        # Verifica se o número de colunas geradas é o esperado (4 no caso)
+        # Verifica o número de colunas geradas
         expected_columns = 4
-        if df_split.shape[1] == expected_columns:
-            df_split.columns = ['Seq', 'Competência', 'Remuneração', 'Ano']
-        else:
-            st.error(f"Erro ao processar os dados: Esperado {expected_columns} colunas, mas encontrado {df_split.shape[1]} colunas.")
-            st.stop()  # Para o processamento caso o número de colunas não seja o esperado
+        if df_split.shape[1] != expected_columns:
+            st.warning(f"Nota: Esperado {expected_columns} colunas, mas foram encontradas {df_split.shape[1]} colunas. Continuando o processamento...")
+        
+        # Definindo os nomes das colunas de forma flexível, dependendo do número real de colunas
+        df_split.columns = ['Seq', 'Competência', 'Remuneração', 'Ano'][:df_split.shape[1]]
 
         # Converte a coluna 'Remuneração' para numérico e aplica o filtro fuzzy
         df_split['Remuneração'] = pd.to_numeric(df_split['Remuneração'], errors='coerce')
