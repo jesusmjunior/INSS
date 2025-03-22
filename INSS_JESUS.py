@@ -1,18 +1,22 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import json
 
-# ================================ CONFIGURAÇÃO INICIAL ================================
+# ================================
+# CONFIGURAÇÃO INICIAL PRIMEIRA LINHA
+# ================================
 st.set_page_config(page_title="Dashboard Previdenciário Profissional", layout="wide")
 
-# ================================ LOGIN SIMPLES ================================
+# ================================
+# LOGIN SIMPLES
+# ================================
 def login():
     st.title("🔐 Área Protegida - Login Obrigatório")
     user = st.text_input("Usuário (Email)")
     password = st.text_input("Senha", type="password")
 
-    if user == "jesusmjunior2021@gmail.com" and password == "jr010507":
+    if user == "jesusmjunior2021@gmail.com" and password == "jr010507";
+               "joliveiramaccf@gmail.com"   and password =="cgti@383679";
         st.success("Login efetuado com sucesso ✅")
         return True
     else:
@@ -20,56 +24,51 @@ def login():
             st.error("Usuário ou senha incorretos ❌")
         st.stop()  # Para bloquear acesso caso não logado
 
-# ================================ EXECUTA LOGIN ================================
+# ================================
+# EXECUTA LOGIN
+# ================================
 login()
 
-# ================================ FUNÇÕES UTILITÁRIAS ================================
+# ================================
+# FUNÇÕES UTILITÁRIAS
+# ================================
 def organizar_cnis(file):
     df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-    # Dividir a primeira coluna em múltiplas colunas
-    df_split = df.iloc[:, 0].str.split(',', expand=True)
-    
-    # Verificar o número de colunas
-    if df_split.shape[1] != 4:
-        st.error(f"Erro: Esperado 4 colunas após a divisão, mas o arquivo tem {df_split.shape[1]} colunas.")
-        st.stop()  # Interrompe a execução se o número de colunas estiver incorreto
-    
-    # Definir os nomes das colunas
-    df_split.columns = ['Seq', 'Competência', 'Remuneração', 'Ano']
-    df_split['Remuneração'] = pd.to_numeric(df_split['Remuneração'], errors='coerce')
-    df_split = df_split[df_split['Remuneração'] < 50000]  # Remove discrepantes - fuzzy
-    return df_split
+    df = df.iloc[:,0].str.split(',', expand=True)
+    df.columns = ['Seq', 'Competência', 'Remuneração', 'Ano']
+    df['Remuneração'] = pd.to_numeric(df['Remuneração'], errors='coerce')
+    df = df[df['Remuneração'] < 50000]  # Remove discrepantes - fuzzy
+    return df
 
 def organizar_desconsiderados(file):
     df = pd.read_csv(file, delimiter=';', encoding='utf-8')
-    
-    # Verificar se o arquivo tem mais de uma coluna
-    if df.shape[1] == 1:
-        # Tentar dividir pela vírgula
-        df_split = df.iloc[:, 0].str.split(',', expand=True)
-        if df_split.shape[1] == 4:  # Verifique se agora há 4 colunas
-            st.success("Arquivo processado corretamente com 4 colunas.")
-        else:
-            st.error(f"Erro: O arquivo tem {df_split.shape[1]} colunas após a divisão. Esperado 4.")
-            st.stop()
-    else:
-        df_split = df
+    df = df.iloc[:,0].str.split(',', expand=True)
+    df.columns = ['Seq', 'Seq.', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação', 'Ano', 'Duplicado']
+    df['Sal. Corrigido'] = pd.to_numeric(df['Sal. Corrigido'], errors='coerce')
+    return df
 
-    # Definindo as colunas e tratando os dados
-    df_split.columns = ['Seq', 'Data', 'Salário', 'Índice', 'Sal. Corrigido', 'Observação']
-    df_split['Sal. Corrigido'] = pd.to_numeric(df_split['Sal. Corrigido'], errors='coerce')
-    return df_split
+def fator_previdenciario(Tc, Es, Id, a=0.31):
+    fator = (Tc * a / Es) * (1 + ((Id + Tc * a) / 100))
+    return round(fator, 4)
 
-# ================================ UPLOAD ================================
+def formatar_moeda(valor):
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# ================================
+# UPLOAD
+# ================================
 st.sidebar.header("🔽 Upload dos Arquivos")
 cnis_file = st.sidebar.file_uploader("Upload - CNIS", type=["csv"])
 carta_file = st.sidebar.file_uploader("Upload - Carta", type=["csv"])
 desconsid_file = st.sidebar.file_uploader("Upload - Desconsiderados", type=["csv"])
 
-aba = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório", "Atualização Monetária"])
+aba = st.sidebar.radio("Navegação", ["Dashboard", "Gráficos", "Explicação", "Simulador", "Relatório"])
 
-# ================================ PROCESSAMENTO PRINCIPAL ================================
+# ================================
+# PROCESSAMENTO PRINCIPAL
+# ================================
 if cnis_file and carta_file and desconsid_file:
+
     df_cnis = organizar_cnis(cnis_file)
     df_desconsiderados = organizar_desconsiderados(desconsid_file)
 
@@ -93,7 +92,9 @@ if cnis_file and carta_file and desconsid_file:
     df_top80['Remuneração'] = df_top80['Remuneração'].apply(formatar_moeda)
     df_vantajosos['Sal. Corrigido'] = df_vantajosos['Sal. Corrigido'].apply(formatar_moeda)
 
-    # ================================ DASHBOARD PRINCIPAL ================================
+    # ================================
+    # DASHBOARD PRINCIPAL
+    # ================================
     if aba == "Dashboard":
         st.title("📑 Dashboard Previdenciário Profissional")
 
@@ -111,14 +112,18 @@ if cnis_file and carta_file and desconsid_file:
         st.dataframe(df_top80)
         st.dataframe(df_vantajosos)
 
-    # ================================ GRÁFICOS ================================
+    # ================================
+    # GRÁFICOS
+    # ================================
     elif aba == "Gráficos":
         st.title("📊 Visualização Gráfica")
         df_grafico = df_cnis_sorted.head(qtd_80)
         st.bar_chart(data=df_grafico, x='Competência', y='Remuneração')
         st.line_chart(data=df_grafico, x='Competência', y='Remuneração')
 
-    # ================================ EXPLICAÇÃO ================================
+    # ================================
+    # EXPLICAÇÃO
+    # ================================
     elif aba == "Explicação":
         st.title("📖 Explicação Detalhada")
         st.markdown("### Fórmulas Aplicadas:")
@@ -137,7 +142,9 @@ if cnis_file and carta_file and desconsid_file:
         ''')
         st.markdown(f"**Média = {formatar_moeda(media_salarios)}, Fator = {fator}, Resultado = {formatar_moeda(salario_beneficio)}**")
 
-    # ================================ SIMULADOR ================================
+    # ================================
+    # SIMULADOR
+    # ================================
     elif aba == "Simulador":
         st.title("⚙️ Simulador Previdenciário")
         Tc_input = st.number_input("Tempo de Contribuição (anos)", value=38)
@@ -149,13 +156,15 @@ if cnis_file and carta_file and desconsid_file:
         st.write(f"**Fator Previdenciário Simulado:** {fator_simulado}")
         st.write(f"**Salário Benefício Simulado:** {formatar_moeda(salario_simulado)}")
 
-    # ================================ RELATÓRIO FINAL ================================
+    # ================================
+    # RELATÓRIO FINAL
+    # ================================
     elif aba == "Relatório":
         st.title("📄 Relatório Previdenciário Consolidado")
 
         st.markdown("""
         ## Relatório Consolidado
-
+        
         Este relatório apresenta os resultados detalhados do processamento previdenciário conforme os dados enviados e as regras aplicadas.
         """)
         st.markdown(f"**Total de registros CNIS:** {len(df_cnis)}")
